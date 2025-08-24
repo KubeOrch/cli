@@ -1,0 +1,50 @@
+# Production testing with published images
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: kubeorch_user
+      POSTGRES_PASSWORD: kubeorch_password
+      POSTGRES_DB: kubeorch_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kubeorch_user -d kubeorch_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  core:
+    image: ghcr.io/kubeorchestra/core:${VERSION:-latest}
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: kubeorch_user
+      DB_PASSWORD: kubeorch_password
+      DB_NAME: kubeorch_db
+      ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ui:
+    image: ghcr.io/kubeorchestra/ui:${VERSION:-latest}
+    restart: always
+    ports:
+      - "3001:3001"  # UI runs on 3001 internally
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NODE_ENV: production
+    depends_on:
+      - core
+
+volumes:
+  postgres_data:

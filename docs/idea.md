@@ -18,9 +18,13 @@ cli/
 │   ├── init.go         # Clone repos or setup forks
 │   ├── dev.go          # Development commands
 │   └── run.go          # Run production images locally
-├── docker/
+├── docker/             # Orchestration files (moved from core repo)
 │   ├── docker-compose.dev.yml   # For development (mounts local code)
-│   └── docker-compose.prod.yml  # For production testing
+│   ├── docker-compose.prod.yml  # For production testing
+│   ├── Dockerfile.core.dev      # Core development container
+│   └── Dockerfile.ui.dev        # UI development container
+├── scripts/
+│   └── setup.sh        # Setup helper scripts
 └── docs/
 ```
 
@@ -352,6 +356,22 @@ orchcli run --version=1.2.3  # Specific version
 3. **Fork Support**: External contributors can easily work with forks
 4. **Production Testing**: Can run latest images without cloning code
 5. **Flexible Workflows**: Support for UI-only, Core-only, or full development
+
+## Why CLI Owns Docker Compose & Orchestration
+
+### Architecture Decision
+The CLI repository owns all development orchestration (docker-compose, Dockerfiles) while Core and UI repos focus purely on their application code.
+
+### Benefits
+1. **Single Source of Truth**: All orchestration in one place
+2. **Clean Core/UI Repos**: No docker-compose clutter
+3. **Easier Maintenance**: Update orchestration without touching app repos
+4. **Better for Contributors**: They only need to understand orchcli commands
+
+### What Lives Where
+- **CLI Repo**: docker-compose files, dev Dockerfiles, orchestration scripts
+- **Core Repo**: Go application code, minimal Makefile for Go tasks
+- **UI Repo**: Next.js application code, package.json scripts
 
 ## Installation
 

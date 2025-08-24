@@ -1,0 +1,62 @@
+# Development environment with local code mounting
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: kubeorch_user
+      POSTGRES_PASSWORD: kubeorch_password
+      POSTGRES_DB: kubeorch_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kubeorch_user -d kubeorch_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  core:
+    build:
+      context: ../core
+      dockerfile: ../cli/docker/Dockerfile.core.dev
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: kubeorch_user
+      DB_PASSWORD: kubeorch_password
+      DB_NAME: kubeorch_db
+      ENV: development
+    volumes:
+      - ../core:/app
+      - /app/vendor  # Preserve Go modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: air  # Hot reload for Go
+
+  ui:
+    build:
+      context: ../ui
+      dockerfile: ../cli/docker/Dockerfile.ui.dev
+    restart: always
+    ports:
+      - "3001:3001"  # UI runs on 3001 internally
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NODE_ENV: development
+    volumes:
+      - ../ui:/app
+      - /app/node_modules  # Preserve node_modules
+    depends_on:
+      - core
+    command: npm run dev
+
+volumes:
+  postgres_data:
