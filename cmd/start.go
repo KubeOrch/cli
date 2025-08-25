@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -33,55 +34,45 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// detect what was initialized
 	uiLocal := dirExists("./ui")
 	coreLocal := dirExists("./core")
 
 	fmt.Println("🚀 starting kubeorchestra services...")
 	
-	// determine which compose file to use
 	var composeFile string
 	
 	if !uiLocal && !coreLocal {
-		// production mode - everything from images
 		fmt.Println("   mode: production (using docker images)")
 		composeFile = "docker/docker-compose.prod.yml"
 	} else if uiLocal && coreLocal {
-		// full development mode
 		fmt.Println("   mode: development (both local)")
 		composeFile = "docker/docker-compose.dev.yml"
 	} else if uiLocal {
-		// ui development only
 		fmt.Println("   mode: ui development (ui local, core from image)")
 		composeFile = "docker/docker-compose.hybrid-ui.yml"
 	} else {
-		// core development only
 		fmt.Println("   mode: core development (core local, ui from image)")
 		composeFile = "docker/docker-compose.hybrid-core.yml"
 	}
 	
-	// check if compose file exists
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
-		fmt.Printf("⚠️  compose file %s not found. creating default configuration...\n", composeFile)
-		if err := createDefaultComposeFiles(); err != nil {
-			return fmt.Errorf("failed to create compose files: %w", err)
-		}
+		return fmt.Errorf("compose file %s not found. please ensure docker-compose files exist in docker/ directory", composeFile)
 	}
 	
-	// build docker-compose command
 	args = []string{"-f", composeFile, "up"}
 	
 	if detach {
 		args = append(args, "-d")
 	}
 	
-	// execute docker-compose
-	composeCmd := exec.Command("docker-compose", args...)
+	dockerCompose := getDockerComposeCommand()
+	cmdArgs := append(dockerCompose, args...)
+	composeCmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	composeCmd.Stdout = os.Stdout
 	composeCmd.Stderr = os.Stderr
 	composeCmd.Stdin = os.Stdin
 	
-	fmt.Println("   running: docker-compose", joinArgs(args))
+	fmt.Printf("   running: %s %s\n", strings.Join(dockerCompose, " "), joinArgs(args))
 	
 	if err := composeCmd.Run(); err != nil {
 		return fmt.Errorf("failed to start services: %w", err)
@@ -89,219 +80,45 @@ func runStart(cmd *cobra.Command, args []string) error {
 	
 	if detach {
 		fmt.Println("✅ services started in background")
-		fmt.Println("   view logs: orchcli logs")
-		fmt.Println("   stop services: orchcli stop")
+		fmt.Println()
+		
+		fmt.Println("⏳ waiting for postgres to be ready...")
+		if err := waitForPostgres(); err != nil {
+			fmt.Printf("⚠️  warning: %v\n", err)
+			fmt.Println("   services may take a moment to be fully ready")
+		} else {
+			fmt.Println("✅ postgres is ready")
+		}
+		
+		fmt.Println()
+		fmt.Println("📊 service status: orchcli status")
+		fmt.Println("📝 view logs: orchcli logs")
+		fmt.Println("🛑 stop services: orchcli stop")
 	}
 	
 	return nil
 }
 
 
-func createDefaultComposeFiles() error {
-	// create docker directory if it doesn't exist
-	if err := os.MkdirAll("docker", 0755); err != nil {
-		return err
+func waitForPostgres() error {
+	maxRetries := 30
+	containerNames := []string{
+		"kubeorchestra-postgres",
+		"kubeorchestra-postgres-dev",
+		"kubeorchestra-postgres-hybrid",
 	}
 	
-	// create production compose file
-	prodCompose := `version: '3.8'
-
-services:
-  postgres:
-    image: postgres:14
-    environment:
-      POSTGRES_DB: kubeorchestra
-      POSTGRES_USER: kubeorchestra
-      POSTGRES_PASSWORD: kubeorchestra
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  core:
-    image: ghcr.io/kubeorchestra/core:latest
-    ports:
-      - "8080:8080"
-    environment:
-      DB_HOST: postgres
-      DB_NAME: kubeorchestra
-      DB_USER: kubeorchestra
-      DB_PASSWORD: kubeorchestra
-    depends_on:
-      - postgres
-
-  ui:
-    image: ghcr.io/kubeorchestra/ui:latest
-    ports:
-      - "3000:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080
-    depends_on:
-      - core
-
-volumes:
-  postgres_data:
-`
-	
-	if err := os.WriteFile("docker/docker-compose.prod.yml", []byte(prodCompose), 0644); err != nil {
-		return err
+	for i := 0; i < maxRetries; i++ {
+		for _, name := range containerNames {
+			cmd := exec.Command("docker", "exec", name, "pg_isready", "-U", "kubeorchestra", "-d", "kubeorchestra")
+			if err := cmd.Run(); err == nil {
+				return nil
+			}
+		}
+		
+		exec.Command("sleep", "1").Run()
 	}
 	
-	// create development compose file
-	devCompose := `version: '3.8'
-
-services:
-  postgres:
-    image: postgres:14
-    environment:
-      POSTGRES_DB: kubeorchestra
-      POSTGRES_USER: kubeorchestra
-      POSTGRES_PASSWORD: kubeorchestra
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  core:
-    build:
-      context: ../core
-      dockerfile: Dockerfile.dev
-    volumes:
-      - ../core:/app
-      - /app/vendor
-    ports:
-      - "8080:8080"
-    environment:
-      DB_HOST: postgres
-      DB_NAME: kubeorchestra
-      DB_USER: kubeorchestra
-      DB_PASSWORD: kubeorchestra
-    depends_on:
-      - postgres
-    command: air
-
-  ui:
-    build:
-      context: ../ui
-      dockerfile: Dockerfile.dev
-    volumes:
-      - ../ui:/app
-      - /app/node_modules
-    ports:
-      - "3000:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080
-    depends_on:
-      - core
-    command: npm run dev
-
-volumes:
-  postgres_data:
-`
-	
-	if err := os.WriteFile("docker/docker-compose.dev.yml", []byte(devCompose), 0644); err != nil {
-		return err
-	}
-	
-	// create hybrid compose files
-	hybridUICompose := `version: '3.8'
-
-services:
-  postgres:
-    image: postgres:14
-    environment:
-      POSTGRES_DB: kubeorchestra
-      POSTGRES_USER: kubeorchestra
-      POSTGRES_PASSWORD: kubeorchestra
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  core:
-    image: ghcr.io/kubeorchestra/core:latest
-    ports:
-      - "8080:8080"
-    environment:
-      DB_HOST: postgres
-      DB_NAME: kubeorchestra
-      DB_USER: kubeorchestra
-      DB_PASSWORD: kubeorchestra
-    depends_on:
-      - postgres
-
-  ui:
-    build:
-      context: ../ui
-      dockerfile: Dockerfile.dev
-    volumes:
-      - ../ui:/app
-      - /app/node_modules
-    ports:
-      - "3000:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080
-    depends_on:
-      - core
-    command: npm run dev
-
-volumes:
-  postgres_data:
-`
-	
-	if err := os.WriteFile("docker/docker-compose.hybrid-ui.yml", []byte(hybridUICompose), 0644); err != nil {
-		return err
-	}
-	
-	hybridCoreCompose := `version: '3.8'
-
-services:
-  postgres:
-    image: postgres:14
-    environment:
-      POSTGRES_DB: kubeorchestra
-      POSTGRES_USER: kubeorchestra
-      POSTGRES_PASSWORD: kubeorchestra
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  core:
-    build:
-      context: ../core
-      dockerfile: Dockerfile.dev
-    volumes:
-      - ../core:/app
-      - /app/vendor
-    ports:
-      - "8080:8080"
-    environment:
-      DB_HOST: postgres
-      DB_NAME: kubeorchestra
-      DB_USER: kubeorchestra
-      DB_PASSWORD: kubeorchestra
-    depends_on:
-      - postgres
-    command: air
-
-  ui:
-    image: ghcr.io/kubeorchestra/ui:latest
-    ports:
-      - "3000:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080
-    depends_on:
-      - core
-
-volumes:
-  postgres_data:
-`
-	
-	if err := os.WriteFile("docker/docker-compose.hybrid-core.yml", []byte(hybridCoreCompose), 0644); err != nil {
-		return err
-	}
-	
-	fmt.Println("✅ created default docker-compose files")
-	return nil
+	return fmt.Errorf("postgres did not become ready in 30 seconds")
 }
+

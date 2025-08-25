@@ -29,22 +29,18 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// detect what was initialized
 	uiLocal := dirExists("./ui")
 	coreLocal := dirExists("./core")
 
 	fmt.Println("🛑 stopping kubeorchestra services...")
 	
-	// determine which compose file to use
 	composeFile := getComposeFile(uiLocal, coreLocal)
 	
-	// check if compose file exists
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
 		fmt.Println("⚠️  no services are running")
 		return nil
 	}
 	
-	// build docker-compose command
 	cmdArgs := []string{"-f", composeFile, "down"}
 	
 	if removeVolumes {
@@ -52,8 +48,9 @@ func runStop(cmd *cobra.Command, args []string) error {
 		fmt.Println("   removing volumes...")
 	}
 	
-	// execute docker-compose
-	composeCmd := exec.Command("docker-compose", cmdArgs...)
+	dockerCompose := getDockerComposeCommand()
+	allArgs := append(dockerCompose, cmdArgs...)
+	composeCmd := exec.Command(allArgs[0], allArgs[1:]...)
 	composeCmd.Stdout = os.Stdout
 	composeCmd.Stderr = os.Stderr
 	

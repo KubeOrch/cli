@@ -35,19 +35,15 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// detect what was initialized
 	uiLocal := dirExists("./ui")
 	coreLocal := dirExists("./core")
 
-	// determine which compose file to use
 	composeFile := getComposeFile(uiLocal, coreLocal)
 	
-	// check if compose file exists
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
 		return fmt.Errorf("no services are running. start services first with: orchcli start")
 	}
 	
-	// build docker-compose command
 	cmdArgs := []string{"-f", composeFile, "logs"}
 	
 	if follow {
@@ -62,15 +58,15 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		cmdArgs = append(cmdArgs, "-t")
 	}
 	
-	// add service name if provided
 	if service != "" {
 		cmdArgs = append(cmdArgs, service)
 	} else if len(args) > 0 {
 		cmdArgs = append(cmdArgs, args[0])
 	}
 	
-	// execute docker-compose
-	composeCmd := exec.Command("docker-compose", cmdArgs...)
+	dockerCompose := getDockerComposeCommand()
+	allArgs := append(dockerCompose, cmdArgs...)
+	composeCmd := exec.Command(allArgs[0], allArgs[1:]...)
 	composeCmd.Stdout = os.Stdout
 	composeCmd.Stderr = os.Stderr
 	composeCmd.Stdin = os.Stdin

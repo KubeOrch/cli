@@ -71,8 +71,8 @@ func setupProduction() error {
 	fmt.Println("   No repositories will be cloned.")
 	fmt.Println("   Docker images will be used for both UI and Core.")
 	
-	if err := checkDocker(); err != nil {
-		return fmt.Errorf("Docker check failed: %w", err)
+	if err := validateDockerCompose(); err != nil {
+		return err
 	}
 	
 	dirs := []string{"docker", "scripts"}
@@ -227,8 +227,8 @@ func checkPrerequisites() error {
 		}
 	}
 	
-	if err := checkDocker(); err != nil {
-		return fmt.Errorf("Docker check failed: %w", err)
+	if err := validateDockerCompose(); err != nil {
+		return err
 	}
 	
 	return nil
@@ -256,18 +256,6 @@ func validateAndCheckDirs(checkUI, checkCore bool) error {
 	return nil
 }
 
-func checkDocker() error {
-	if err := checkCommand("docker", "--version"); err != nil {
-		return fmt.Errorf("docker is not installed. Please install Docker first")
-	}
-	
-	cmd := exec.Command("docker", "info")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Docker daemon is not running. Please start Docker")
-	}
-	
-	return nil
-}
 
 
 func cloneRepo(url, path string) error {
