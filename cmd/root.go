@@ -8,7 +8,6 @@ import (
 )
 
 var (
-	// Version information - set via build flags
 	version   = "dev"
 	commit    = "none"
 	buildDate = "unknown"
@@ -27,7 +26,6 @@ It helps developers:
 	Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, buildDate),
 }
 
-// Execute runs the root command
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -36,12 +34,10 @@ func Execute() {
 }
 
 func init() {
-	// Set custom version template
 	rootCmd.SetVersionTemplate(`OrchCLI {{.Version}}
 {{printf "License: Apache-2.0"}}
 {{printf "Repository: https://github.com/kubeorchestra/cli"}}
 `)
 
-	// Disable completion command by default as we'll add it later with proper implementation
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 }
