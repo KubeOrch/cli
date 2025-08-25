@@ -146,13 +146,11 @@ cli/
 │   ├── status.go       # Check status
 │   ├── debug.go        # Debug connectivity
 │   └── utils.go        # Shared utilities
-├── docker/             # Docker configuration
+├── docker/             # Docker orchestration
 │   ├── docker-compose.prod.yml     # Production mode
 │   ├── docker-compose.dev.yml      # Development mode (both local)
 │   ├── docker-compose.hybrid-ui.yml    # UI local, Core from image
-│   ├── docker-compose.hybrid-core.yml  # Core local, UI from image
-│   ├── Dockerfile.ui   # Production UI image
-│   └── Dockerfile.core # Production Core image
+│   └── docker-compose.hybrid-core.yml  # Core local, UI from image
 ├── scripts/            # Helper scripts
 └── docs/               # Documentation
 ```
@@ -235,16 +233,13 @@ make vet
 ## Docker Images
 
 ### Production Images
-The production Docker images are built and published to GitHub Container Registry:
+The production Docker images are published to GitHub Container Registry:
 
-- `ghcr.io/kubeorchestra/ui:latest` - Frontend application
-- `ghcr.io/kubeorchestra/core:latest` - Backend application
+- `ghcr.io/kubeorchestra/ui:latest` - Frontend application (built from kubeorchestra/ui repo)
+- `ghcr.io/kubeorchestra/core:latest` - Backend application (built from kubeorchestra/core repo)
 
-### Image Building
-Images are automatically built and published via GitHub Actions when:
-- Pushing to main branch
-- Creating tags (v*)
-- Opening pull requests
+Note: Docker images are built and published from their respective repositories, not from this CLI repo.
+The CLI orchestrates these pre-built images using docker-compose.
 
 ## Requirements
 
