@@ -76,8 +76,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	
 	fmt.Println()
 	fmt.Println("🌐 service endpoints:")
-	fmt.Println("   ui:       http://localhost:3000")
-	fmt.Println("   api:      http://localhost:8080") 
+	fmt.Println("   ui:       http://localhost:3001")
+	fmt.Println("   api:      http://localhost:3000") 
 	fmt.Println("   postgres: localhost:5432")
 	
 	fmt.Println()

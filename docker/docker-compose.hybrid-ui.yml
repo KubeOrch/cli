@@ -1,5 +1,8 @@
 version: '3.8'
 
+# Hybrid UI mode - UI runs on host, Core from Docker image
+# PostgreSQL and Core run in Docker
+
 networks:
   kubeorchestra-net:
     driver: bridge
@@ -19,8 +22,6 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     ports:
       - "5432:5432"
-    expose:
-      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -38,8 +39,6 @@ services:
       - kubeorchestra-net
     ports:
       - "3000:3000"
-    expose:
-      - "3000"
     environment:
       DB_HOST: postgres
       DB_NAME: kubeorchestra
@@ -50,27 +49,8 @@ services:
       postgres:
         condition: service_healthy
 
-  ui:
-    image: node:18-alpine
-    container_name: kubeorchestra-ui-hybrid
-    restart: unless-stopped
-    networks:
-      - kubeorchestra-net
-    volumes:
-      - ../ui:/app
-    working_dir: /app
-    ports:
-      - "3001:3001"
-    expose:
-      - "3001"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3000
-      API_URL_INTERNAL: http://core:3000
-      NODE_ENV: development
-      PORT: 3001
-    depends_on:
-      - core
-    command: sh -c "npm install && npm run dev"
+# UI runs on host: cd ui && npm install && npm run dev (port 3001)
+# UI connects to Core at localhost:3000
 
 volumes:
   postgres_data:

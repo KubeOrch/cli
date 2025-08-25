@@ -35,17 +35,12 @@ make install
 # Initialize for production testing only
 orchcli init
 
-# Start services with latest Docker images
-orchcli start
-
-# Start in background (detached mode)
+# Start all services in Docker
 orchcli start -d
 
-# View logs
-orchcli logs
-
-# Check status
-orchcli status
+# Access the application
+# UI: http://localhost:3001
+# API: http://localhost:3000
 
 # Stop services
 orchcli stop
@@ -53,23 +48,55 @@ orchcli stop
 
 ### Development Setup
 
-#### For Team Members
+#### Full Stack Development (Both Repos)
 ```bash
-# Clone official repositories for development
+# Clone both repositories
 orchcli init --fork-ui --fork-core
 
-# Or clone only what you need
-orchcli init --fork-ui     # Frontend development only
-orchcli init --fork-core   # Backend development only
+# Start PostgreSQL in Docker
+orchcli start -d
 
-# Start development environment
-orchcli start
+# In terminal 1 - Start Core
+cd core
+air  # or: go run .
 
-# Make changes and commit directly
+# In terminal 2 - Start UI
 cd ui
-git add .
-git commit -m "feat: add new feature"
-git push origin main
+npm install  # first time only
+npm run dev
+
+# Access: UI at localhost:3001, API at localhost:3000
+```
+
+#### Frontend Development Only
+```bash
+# Clone only UI repository
+orchcli init --fork-ui
+
+# Start PostgreSQL and Core in Docker
+orchcli start -d
+
+# Start UI on host
+cd ui
+npm install  # first time only
+npm run dev
+
+# Access: UI at localhost:3001, API at localhost:3000 (Docker)
+```
+
+#### Backend Development Only
+```bash
+# Clone only Core repository
+orchcli init --fork-core
+
+# Start all services (PostgreSQL, UI, and Core with mounted volume)
+orchcli start -d
+
+# Your Core code is mounted in the container with hot reload
+# Edit files locally, Air will rebuild automatically
+# No need to install Go locally!
+
+# Access: UI at localhost:3001 (Docker), API at localhost:3000 (Docker)
 ```
 
 #### For External Contributors
@@ -77,15 +104,10 @@ git push origin main
 # Fork repos on GitHub first, then:
 orchcli init --fork-ui=youruser/ui --fork-core=youruser/core
 
-# Or work on specific parts:
-orchcli init --fork-ui=youruser/ui    # Frontend only
-orchcli init --fork-core=youruser/core # Backend only
-
-# Start development
-orchcli start
+# Follow the same development steps above
 
 # Create PR from your fork
-cd ui
+cd ui  # or cd core
 git checkout -b feature/my-feature
 git push origin feature/my-feature
 ```
@@ -158,37 +180,68 @@ cli/
 ## Service Architecture
 
 ### Network Configuration
-All services run on the same Docker network for seamless communication:
+
+#### Production Mode
+All services in Docker network:
 - PostgreSQL: `postgres:5432` (internal), `localhost:5432` (host)
 - Core API: `core:3000` (internal), `localhost:3000` (host)
 - UI: `ui:3001` (internal), `localhost:3001` (host)
+
+#### Development Modes
+- **Full Dev**: Everything on localhost (only PostgreSQL in Docker)
+- **Frontend Dev**: UI on host (localhost), Core/PostgreSQL in Docker
+- **Backend Dev**: Everything in Docker network (Core code mounted)
 
 ### Service Dependencies
 - Core waits for PostgreSQL to be healthy before starting
 - UI depends on Core being available
 - Health checks ensure proper startup sequencing
 
+### Key Design Decisions
+
+1. **Asymmetric Hybrid Modes**: 
+   - Frontend developers run UI on host (natural for Node.js workflow)
+   - Backend developers run Core in container (no Go installation needed)
+
+2. **Smart Defaults**:
+   - Auto-installs dependencies when possible
+   - Chooses appropriate docker-compose file based on cloned repos
+   - Provides clear instructions for next steps
+
+3. **Developer Experience**:
+   - Frontend devs use familiar `npm run dev` on host
+   - Backend devs get hot reload without installing Go
+   - Full-stack devs run everything locally for maximum control
+
 ### Development Modes
 
 1. **Production Mode** (no repos cloned)
    - All services run from Docker images
    - Uses `docker-compose.prod.yml`
+   - Everything runs in Docker containers
+   - Services communicate via Docker network
 
 2. **Full Development Mode** (both repos cloned)
-   - UI and Core run locally with hot reload
-   - Uses `docker-compose.dev.yml`
-   - UI: Node.js with `npm run dev`
-   - Core: Go with Air for hot reload
+   - PostgreSQL runs in Docker (port 5432)
+   - Core runs on host: `cd core && air` (port 3000)
+   - UI runs on host: `cd ui && npm run dev` (port 3001)
+   - Uses `docker-compose.dev.yml` (only PostgreSQL)
+   - Requires: Node.js and Go installed locally
 
-3. **Hybrid UI Mode** (only UI repo cloned)
-   - UI runs locally with hot reload
-   - Core runs from Docker image
+3. **Frontend Development Mode** (only UI repo cloned)
+   - PostgreSQL and Core run in Docker
+   - UI runs on host: `cd ui && npm run dev` (port 3001)
    - Uses `docker-compose.hybrid-ui.yml`
+   - Requires: Node.js installed locally
+   - Core API available at localhost:3000
 
-4. **Hybrid Core Mode** (only Core repo cloned)
-   - Core runs locally with hot reload
-   - UI runs from Docker image
+4. **Backend Development Mode** (only Core repo cloned)
+   - All services run in Docker for simplicity
+   - Core runs in Docker with mounted volume for hot reload
    - Uses `docker-compose.hybrid-core.yml`
+   - **No local Go installation required!**
+   - Edit Core code locally, Air watches and rebuilds in container
+   - UI and Core communicate via Docker network
 
 ## Auto-Installation Features
 

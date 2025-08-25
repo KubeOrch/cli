@@ -79,7 +79,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 	
 	if detach {
-		fmt.Println("✅ services started in background")
+		fmt.Println("✅ docker services started in background")
 		fmt.Println()
 		
 		fmt.Println("⏳ waiting for postgres to be ready...")
@@ -91,9 +91,44 @@ func runStart(cmd *cobra.Command, args []string) error {
 		}
 		
 		fmt.Println()
-		fmt.Println("📊 service status: orchcli status")
+		
+		// provide instructions based on what was initialized
+		if uiLocal && coreLocal {
+			fmt.Println("📝 next steps for development:")
+			fmt.Println("   1. start core: cd core && air")
+			fmt.Println("   2. start ui: cd ui && npm run dev")
+			fmt.Println()
+			fmt.Println("   core will run on http://localhost:3000")
+			fmt.Println("   ui will run on http://localhost:3001")
+			fmt.Println("   postgresql is at localhost:5432")
+		} else if uiLocal {
+			fmt.Println("📝 next steps for ui development:")
+			fmt.Println("   start ui: cd ui && npm run dev")
+			fmt.Println()
+			fmt.Println("   ui will run on http://localhost:3001")
+			fmt.Println("   core api is at http://localhost:3000 (docker)")
+			fmt.Println("   postgresql is at localhost:5432 (docker)")
+		} else if coreLocal {
+			fmt.Println("📝 backend development mode:")
+			fmt.Println("   ✅ core is running in docker with your code mounted")
+			fmt.Println("   ✅ hot reload enabled - just edit your files")
+			fmt.Println()
+			fmt.Println("   core api: http://localhost:3000 (docker with mounted code)")
+			fmt.Println("   ui: http://localhost:3001 (docker)")
+			fmt.Println("   postgresql: localhost:5432 (docker)")
+			fmt.Println()
+			fmt.Println("   note: no go installation required!")
+		} else {
+			fmt.Println("📊 all services running in docker:")
+			fmt.Println("   ui: http://localhost:3001")
+			fmt.Println("   api: http://localhost:3000")
+			fmt.Println("   postgresql: localhost:5432")
+		}
+		
+		fmt.Println()
+		fmt.Println("🛑 stop docker services: orchcli stop")
 		fmt.Println("📝 view logs: orchcli logs")
-		fmt.Println("🛑 stop services: orchcli stop")
+		fmt.Println("📊 check status: orchcli status")
 	}
 	
 	return nil
