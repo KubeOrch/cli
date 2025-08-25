@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	forkUI   string
-	forkCore string
-	skipDeps bool
+	forkUI      string
+	forkCore    string
+	skipDeps    bool
+	autoInstall bool
 )
 
 var initCmd = &cobra.Command{
@@ -46,8 +47,8 @@ func init() {
 	initCmd.Flags().StringVar(&forkUI, "fork-ui", "", "Clone UI repository (use --fork-ui= for official, or --fork-ui=username/repo for fork)")
 	initCmd.Flags().StringVar(&forkCore, "fork-core", "", "Clone Core repository (use --fork-core= for official, or --fork-core=username/repo for fork)")
 	initCmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency installation")
+	initCmd.Flags().BoolVar(&autoInstall, "auto-install", true, "Automatically install missing dependencies (npm, go)")
 	
-	// NoOptDefVal allows --fork-ui without value to default to official repo
 	initCmd.Flags().Lookup("fork-ui").NoOptDefVal = "KubeOrchestra/ui"
 	initCmd.Flags().Lookup("fork-core").NoOptDefVal = "KubeOrchestra/core"
 	
@@ -100,7 +101,11 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 		forkCore = "KubeOrchestra/core"
 	}
 	
-	if err := checkPrerequisites(cloneUI, cloneCore); err != nil {
+	if err := checkPrerequisites(); err != nil {
+		return err
+	}
+	
+	if err := validateAndCheckDirs(cloneUI, cloneCore); err != nil {
 		return err
 	}
 	
@@ -120,10 +125,10 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 		}
 		
 		if !skipDeps {
-			fmt.Println("📥 Installing UI dependencies...")
+			fmt.Println("📥 installing ui dependencies...")
 			if err := installUIDependencies(); err != nil {
-				fmt.Printf("⚠️  Warning: Failed to install UI dependencies: %v\n", err)
-				fmt.Println("   You can install them manually with: cd ui && npm install")
+				fmt.Printf("⚠️  warning: failed to install ui dependencies: %v\n", err)
+				fmt.Println("   you can install them manually with: cd ui && npm install")
 			}
 		}
 	}
@@ -144,10 +149,10 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 		}
 		
 		if !skipDeps {
-			fmt.Println("📥 Downloading Core dependencies...")
+			fmt.Println("📥 downloading core dependencies...")
 			if err := installCoreDependencies(); err != nil {
-				fmt.Printf("⚠️  Warning: Failed to download Core dependencies: %v\n", err)
-				fmt.Println("   You can download them manually with: cd core && go mod download")
+				fmt.Printf("⚠️  warning: failed to download core dependencies: %v\n", err)
+				fmt.Println("   you can download them manually with: cd core && go mod download")
 			}
 		}
 	}
@@ -209,18 +214,33 @@ func validateRepoFormat(repo string) error {
 	return nil
 }
 
-func checkPrerequisites(checkUI, checkCore bool) error {
+func checkPrerequisites() error {
 	if err := checkCommand("git", "--version"); err != nil {
-		return fmt.Errorf("git is not installed. Please install git first")
+		if autoInstall {
+			fmt.Println("⚠️  git not found. installing git...")
+			if err := installGit(); err != nil {
+				return fmt.Errorf("failed to install git: %w. please install manually", err)
+			}
+			fmt.Println("✅ git installed successfully")
+		} else {
+			return fmt.Errorf("git is not installed. please install git first")
+		}
 	}
 	
 	if err := checkDocker(); err != nil {
 		return fmt.Errorf("Docker check failed: %w", err)
 	}
 	
+	return nil
+}
+
+func validateAndCheckDirs(checkUI, checkCore bool) error {
 	if checkUI {
 		if err := validateRepoFormat(forkUI); err != nil {
 			return fmt.Errorf("invalid UI repository: %w", err)
+		}
+		if dirExists("./ui") {
+			return fmt.Errorf("UI directory already exists. Please remove it first or use 'orchcli update'")
 		}
 	}
 	
@@ -228,14 +248,9 @@ func checkPrerequisites(checkUI, checkCore bool) error {
 		if err := validateRepoFormat(forkCore); err != nil {
 			return fmt.Errorf("invalid Core repository: %w", err)
 		}
-	}
-	
-	if checkUI && dirExists("./ui") {
-		return fmt.Errorf("UI directory already exists. Please remove it first or use 'orchcli update'")
-	}
-	
-	if checkCore && dirExists("./core") {
-		return fmt.Errorf("Core directory already exists. Please remove it first or use 'orchcli update'")
+		if dirExists("./core") {
+			return fmt.Errorf("Core directory already exists. Please remove it first or use 'orchcli update'")
+		}
 	}
 	
 	return nil
@@ -288,7 +303,6 @@ func setupUpstream(repoPath, upstreamURL string) error {
 	cmd.Dir = repoPath
 	
 	if err := cmd.Run(); err != nil {
-		// Check if upstream already exists, update if so
 		checkCmd := exec.Command("git", "remote", "get-url", "upstream")
 		checkCmd.Dir = repoPath
 		if checkErr := checkCmd.Run(); checkErr == nil {
@@ -309,9 +323,18 @@ func setupUpstream(repoPath, upstreamURL string) error {
 
 func installUIDependencies() error {
 	if err := checkCommand("npm", "--version"); err != nil {
-		return fmt.Errorf("npm is not installed")
+		if autoInstall {
+			fmt.Println("⚠️  npm not found. installing node.js and npm...")
+			if err := installNodeJS(); err != nil {
+				return fmt.Errorf("failed to install node.js: %w. please install manually from https://nodejs.org/", err)
+			}
+			fmt.Println("✅ node.js and npm installed successfully")
+		} else {
+			return fmt.Errorf("npm is not installed. please install node.js and npm from https://nodejs.org/")
+		}
 	}
 	
+	fmt.Println("   this may take a few minutes...")
 	cmd := exec.Command("npm", "install")
 	cmd.Dir = "./ui"
 	cmd.Stdout = os.Stdout
@@ -322,13 +345,99 @@ func installUIDependencies() error {
 
 func installCoreDependencies() error {
 	if err := checkCommand("go", "version"); err != nil {
-		return fmt.Errorf("go is not installed")
+		if autoInstall {
+			fmt.Println("⚠️  go not found. installing go...")
+			if err := installGo(); err != nil {
+				return fmt.Errorf("failed to install go: %w. please install manually from https://go.dev/", err)
+			}
+			fmt.Println("✅ go installed successfully")
+		} else {
+			return fmt.Errorf("go is not installed. please install go from https://go.dev/")
+		}
 	}
 	
+	fmt.Println("   downloading go modules...")
 	cmd := exec.Command("go", "mod", "download")
 	cmd.Dir = "./core"
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	
 	return cmd.Run()
+}
+
+func installNodeJS() error {
+	if _, err := os.Stat("/etc/debian_version"); err == nil {
+		fmt.Println("   installing via apt...")
+		
+		exec.Command("apt-get", "update").Run()
+		exec.Command("apt-get", "install", "-y", "curl").Run()
+		
+		setupCmd := exec.Command("bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -")
+		setupCmd.Stdout = os.Stdout
+		setupCmd.Stderr = os.Stderr
+		if err := setupCmd.Run(); err != nil {
+			return err
+		}
+		
+		installCmd := exec.Command("apt-get", "install", "-y", "nodejs")
+		installCmd.Stdout = os.Stdout
+		installCmd.Stderr = os.Stderr
+		return installCmd.Run()
+	}
+	
+	if _, err := exec.LookPath("brew"); err == nil {
+		fmt.Println("   installing via homebrew...")
+		cmd := exec.Command("brew", "install", "node")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+	
+	return fmt.Errorf("automatic installation not supported for this os")
+}
+
+func installGo() error {
+	if _, err := os.Stat("/etc/debian_version"); err == nil {
+		fmt.Println("   installing go via apt...")
+		
+		exec.Command("apt-get", "update").Run()
+		
+		installCmd := exec.Command("apt-get", "install", "-y", "golang-go")
+		installCmd.Stdout = os.Stdout
+		installCmd.Stderr = os.Stderr
+		return installCmd.Run()
+	}
+	
+	if _, err := exec.LookPath("brew"); err == nil {
+		fmt.Println("   installing via homebrew...")
+		cmd := exec.Command("brew", "install", "go")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+	
+	return fmt.Errorf("automatic installation not supported for this os")
+}
+
+func installGit() error {
+	if _, err := os.Stat("/etc/debian_version"); err == nil {
+		fmt.Println("   installing git via apt...")
+		
+		exec.Command("apt-get", "update").Run()
+		
+		installCmd := exec.Command("apt-get", "install", "-y", "git")
+		installCmd.Stdout = os.Stdout
+		installCmd.Stderr = os.Stderr
+		return installCmd.Run()
+	}
+	
+	if _, err := exec.LookPath("brew"); err == nil {
+		fmt.Println("   installing via homebrew...")
+		cmd := exec.Command("brew", "install", "git")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+	
+	return fmt.Errorf("automatic installation not supported for this os")
 }

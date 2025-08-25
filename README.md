@@ -105,6 +105,8 @@ git push origin feature/my-feature
 - `--fork-core` - Clone official Core repo (KubeOrchestra/core) for team members
 - `--fork-core=user/repo` - Clone Core from specified fork for external contributors
 - `--skip-deps` - Skip dependency installation
+- `--auto-install` - Automatically install missing dependencies (npm, go) - enabled by default
+- `--auto-install=false` - Disable automatic installation of missing dependencies
 
 ### Dev Command Flags
 
