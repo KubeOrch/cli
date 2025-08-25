@@ -86,8 +86,8 @@ func setupProduction() error {
 	fmt.Println("\n📝 Image tags that will be used:")
 	fmt.Println("   - ghcr.io/kubeorchestra/ui:latest")
 	fmt.Println("   - ghcr.io/kubeorchestra/core:latest")
-	fmt.Println("\n   You can specify versions with: orchcli run --version=v1.2.3")
-	fmt.Println("   Run 'orchcli run' to start services with latest images")
+	fmt.Println("\n   You can specify versions with: orchcli start --version=v1.2.3")
+	fmt.Println("   Run 'orchcli start' to start services with latest images")
 	return nil
 }
 
@@ -161,11 +161,11 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	fmt.Println("\n📝 Next steps:")
 	
 	if cloneUI && cloneCore {
-		fmt.Println("   1. Run 'orchcli dev start' to start both UI and Core locally")
+		fmt.Println("   1. Run 'orchcli start' to start both UI and Core locally")
 	} else if cloneUI {
-		fmt.Println("   1. Run 'orchcli dev start --ui-only' to start UI locally with Core from Docker")
+		fmt.Println("   1. Run 'orchcli start' to start UI locally with Core from Docker")
 	} else if cloneCore {
-		fmt.Println("   1. Run 'orchcli dev start --core-only' to start Core locally with UI from Docker")
+		fmt.Println("   1. Run 'orchcli start' to start Core locally with UI from Docker")
 	}
 	
 	fmt.Println("   2. Make your changes in the cloned repositories")
@@ -269,18 +269,6 @@ func checkDocker() error {
 	return nil
 }
 
-func checkCommand(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	return cmd.Run()
-}
-
-func dirExists(path string) bool {
-	info, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return info != nil && info.IsDir()
-}
 
 func cloneRepo(url, path string) error {
 	if dirExists(path) {
