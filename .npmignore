@@ -1,37 +1,12 @@
-# Source files
-*.go
-go.mod
-go.sum
-main.go
-
-# Directories
-cmd/
-internal/
-tests/
-docker/
-scripts/
-docs/
-.github/
-
-# Build files
-Makefile
-*.out
-coverage.html
-dist/
-
-# Config files
-.gitignore
-.golangci.yml
-.goreleaser.yml
-
-# Development files
-*.log
-*.tmp
-.DS_Store
-.env*
-
-# Keep only npm directory and essential files
-!npm/
+# Ignore everything except what we need for npm
+*
+!package.json
 !README.md
 !LICENSE
-!package.json
+!npm/
+!npm/**/*
+
+# But exclude binaries from npm folder
+npm/bin/orchcli-bin
+npm/bin/orchcli-bin.exe
+npm/bin/*.exe
