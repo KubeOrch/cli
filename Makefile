@@ -129,3 +129,23 @@ build-all:
 	@GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)-linux-arm64 main.go
 	@GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)-windows-amd64.exe main.go
 	@echo "$(GREEN)Multi-platform build complete! Binaries in dist/$(NC)"
+
+## npm-build: Build binary for npm package
+npm-build:
+	@echo "$(GREEN)Building binary for npm package...$(NC)"
+	@VERSION=$$(node -p "require('./package.json').version") && \
+		go build -ldflags "-X 'github.com/kubeorchestra/cli/cmd.version=$$VERSION' -X 'github.com/kubeorchestra/cli/cmd.commit=$$(git rev-parse --short HEAD 2>/dev/null || echo 'release')' -X 'github.com/kubeorchestra/cli/cmd.buildDate=$$(date -u +"%Y-%m-%dT%H:%M:%SZ")'" -o npm/bin/$(BINARY_NAME)-bin main.go
+	@chmod +x npm/bin/$(BINARY_NAME)-bin
+	@echo "$(GREEN)NPM binary built!$(NC)"
+
+## npm-test: Test npm package locally
+npm-test: npm-build
+	@echo "$(GREEN)Testing npm package locally...$(NC)"
+	@npm pack
+	@echo "$(GREEN)Package created! Test with: npm install -g kubeorchestra-orchcli-*.tgz$(NC)"
+
+## npm-publish: Publish to npm registry
+npm-publish: npm-build
+	@echo "$(GREEN)Publishing to npm registry...$(NC)"
+	@npm publish --access public
+	@echo "$(GREEN)Published to npm!$(NC)"

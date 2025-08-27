@@ -16,6 +16,18 @@ OrchCLI is the official command-line tool for developing with the KubeOrchestra 
 
 ## Installation
 
+### Via NPM (Recommended)
+```bash
+# Install globally
+npm install -g @kubeorchestra/cli
+
+# Or with yarn
+yarn global add @kubeorchestra/cli
+
+# Or with pnpm
+pnpm add -g @kubeorchestra/cli
+```
+
 ### Via Go
 ```bash
 go install github.com/kubeorchestra/cli@latest
@@ -26,6 +38,10 @@ go install github.com/kubeorchestra/cli@latest
 git clone https://github.com/kubeorchestra/cli
 cd cli
 make install
+
+# Or build manually
+make build
+sudo mv ./orchcli /usr/local/bin/
 ```
 
 ## Quick Start

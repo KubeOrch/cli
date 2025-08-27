@@ -1,0 +1,37 @@
+# Source files
+*.go
+go.mod
+go.sum
+main.go
+
+# Directories
+cmd/
+internal/
+tests/
+docker/
+scripts/
+docs/
+.github/
+
+# Build files
+Makefile
+*.out
+coverage.html
+dist/
+
+# Config files
+.gitignore
+.golangci.yml
+.goreleaser.yml
+
+# Development files
+*.log
+*.tmp
+.DS_Store
+.env*
+
+# Keep only npm directory and essential files
+!npm/
+!README.md
+!LICENSE
+!package.json
