@@ -1,0 +1,205 @@
+# golangci-lint configuration
+# https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+  build-tags:
+    - integration
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  sort-results: true
+
+linters:
+  enable:
+    - bodyclose
+    - dogsled
+    - dupl
+    - errcheck
+    - exhaustive
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - mnd
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - nakedret
+    - noctx
+    - nolintlint
+    - revive
+    - staticcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+    - prealloc
+    - asciicheck
+    - makezero
+    - nilnil
+
+  disable:
+    - depguard
+    - gochecknoglobals
+    - gocognit
+    - godot
+    - godox
+    - err113
+    - nestif
+    - testpackage
+    - wsl
+    - funlen
+    - gci
+    - nlreturn
+    - wrapcheck
+    - errorlint
+    - cyclop
+    - durationcheck
+    - forcetypeassert
+    - importas
+    - nilerr
+    - predeclared
+    - thelper
+    - tparallel
+    - wastedassign
+
+linters-settings:
+  dupl:
+    threshold: 100
+  
+  exhaustive:
+    default-signifies-exhaustive: false
+  
+  gocyclo:
+    min-complexity: 15
+  
+  mnd:
+    settings:
+      mnd:
+        checks:
+          - argument
+          - case
+          - condition
+          - operation
+          - return
+  
+  govet:
+    enable-all: true
+  
+  lll:
+    line-length: 140
+  
+  misspell:
+    locale: US
+  
+  nolintlint:
+    allow-leading-space: false
+    allow-unused: false
+    require-explanation: true
+    require-specific: true
+  
+  revive:
+    severity: warning
+    confidence: 0.8
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+  
+  gosec:
+    excludes:
+      - G104 # Ignore error checking
+      - G304 # File path provided as taint input
+    confidence: medium
+    severity: medium
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+  uniq-by-line: true
+  exclude-dirs:
+    - vendor
+    - third_party
+    - testdata
+    - examples
+    - Godeps
+    - builtin
+  exclude-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\.gen\\.go$"
+    - "mock_.*\\.go"
+  
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - mnd
+        - lll
+    
+    - path: tests/
+      linters:
+        - gosec
+        - dupl
+        - mnd
+        - lll
+    
+    - linters:
+        - lll
+      source: "^//go:generate "
+    
+    - text: "weak cryptographic primitive"
+      linters:
+        - gosec
+    
+    - text: "at least one comment"
+      linters:
+        - revive
+    
+    - text: "should have a package comment"
+      linters:
+        - revive
+    
+    - path: cmd/
+      linters:
+        - gochecknoinits
+  
+  exclude-use-default: false
+  exclude:
+    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
+    - "exported method .* should have comment or be unexported"
+    - "exported type .* should have comment or be unexported"
+    - "exported const .* should have comment or be unexported"
+    - "exported var .* should have comment or be unexported"

@@ -27,7 +27,7 @@ func validateDockerCompose() error {
 		}
 		fmt.Println("✅ docker installed successfully")
 	}
-	
+
 	if err := checkCommand("docker", "info"); err != nil {
 		fmt.Println("⚠️  docker daemon is not running. starting docker...")
 		if err := startDockerDaemon(); err != nil {
@@ -35,7 +35,7 @@ func validateDockerCompose() error {
 		}
 		fmt.Println("✅ docker daemon started")
 	}
-	
+
 	if err := checkCommand("docker", "compose", "version"); err != nil {
 		if err := checkCommand("docker-compose", "--version"); err != nil {
 			fmt.Println("⚠️  docker compose not found. installing docker compose...")
@@ -45,18 +45,19 @@ func validateDockerCompose() error {
 			fmt.Println("✅ docker compose installed successfully")
 		}
 	}
-	
+
 	return nil
 }
 
 func getComposeFile(uiLocal, coreLocal bool) string {
-	if !uiLocal && !coreLocal {
+	switch {
+	case !uiLocal && !coreLocal:
 		return "docker/docker-compose.prod.yml"
-	} else if uiLocal && coreLocal {
+	case uiLocal && coreLocal:
 		return "docker/docker-compose.dev.yml"
-	} else if uiLocal {
+	case uiLocal:
 		return "docker/docker-compose.hybrid-ui.yml"
-	} else {
+	default:
 		return "docker/docker-compose.hybrid-core.yml"
 	}
 }
@@ -75,42 +76,48 @@ func joinArgs(args []string) string {
 func installDocker() error {
 	if _, err := os.Stat("/etc/debian_version"); err == nil {
 		fmt.Println("   installing docker via apt...")
-		
+
 		updateCmd := exec.Command("apt-get", "update")
 		updateCmd.Stdout = os.Stdout
 		updateCmd.Stderr = os.Stderr
 		if err := updateCmd.Run(); err != nil {
 			return fmt.Errorf("failed to update package list: %w", err)
 		}
-		
+
 		depsCmd := exec.Command("apt-get", "install", "-y", "ca-certificates", "curl", "gnupg", "lsb-release")
 		depsCmd.Stdout = os.Stdout
 		depsCmd.Stderr = os.Stderr
 		if err := depsCmd.Run(); err != nil {
 			return fmt.Errorf("failed to install docker dependencies: %w", err)
 		}
-		
-		gpgCmd := exec.Command("bash", "-c", "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg")
+
+		gpgScript := "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | " +
+			"gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"
+		gpgCmd := exec.Command("bash", "-c", gpgScript)
 		gpgCmd.Stdout = os.Stdout
 		gpgCmd.Stderr = os.Stderr
 		if err := gpgCmd.Run(); err != nil {
 			return fmt.Errorf("failed to add docker gpg key: %w", err)
 		}
-		
-		repoCmd := exec.Command("bash", "-c", `echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null`)
+
+		repoScript := `echo "deb [arch=$(dpkg --print-architecture) ` +
+			`signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] ` +
+			`https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | ` +
+			`tee /etc/apt/sources.list.d/docker.list > /dev/null`
+		repoCmd := exec.Command("bash", "-c", repoScript)
 		repoCmd.Stdout = os.Stdout
 		repoCmd.Stderr = os.Stderr
 		if err := repoCmd.Run(); err != nil {
 			return fmt.Errorf("failed to setup docker repository: %w", err)
 		}
-		
+
 		update2Cmd := exec.Command("apt-get", "update")
 		update2Cmd.Stdout = os.Stdout
 		update2Cmd.Stderr = os.Stderr
 		if err := update2Cmd.Run(); err != nil {
 			return fmt.Errorf("failed to update package list after adding docker repo: %w", err)
 		}
-		
+
 		installCmd := exec.Command("apt-get", "install", "-y", "docker-ce", "docker-ce-cli", "containerd.io")
 		installCmd.Stdout = os.Stdout
 		installCmd.Stderr = os.Stderr
@@ -119,7 +126,7 @@ func installDocker() error {
 		}
 		return nil
 	}
-	
+
 	if _, err := exec.LookPath("brew"); err == nil {
 		fmt.Println("   installing docker via homebrew...")
 		cmd := exec.Command("brew", "install", "--cask", "docker")
@@ -130,29 +137,30 @@ func installDocker() error {
 		}
 		return nil
 	}
-	
+
 	return fmt.Errorf("automatic installation not supported for this os")
 }
 
 func installDockerCompose() error {
 	if _, err := os.Stat("/etc/debian_version"); err == nil {
 		fmt.Println("   installing docker-compose...")
-		
-		downloadCmd := exec.Command("bash", "-c", 
-			`curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose`)
+
+		downloadCmd := exec.Command("bash", "-c",
+			`curl -L "https://github.com/docker/compose/releases/latest/download/`+
+				`docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose`)
 		downloadCmd.Stdout = os.Stdout
 		downloadCmd.Stderr = os.Stderr
 		if err := downloadCmd.Run(); err != nil {
 			return fmt.Errorf("failed to download docker-compose: %w", err)
 		}
-		
+
 		chmodCmd := exec.Command("chmod", "+x", "/usr/local/bin/docker-compose")
 		if err := chmodCmd.Run(); err != nil {
 			return fmt.Errorf("failed to make docker-compose executable: %w", err)
 		}
 		return nil
 	}
-	
+
 	if _, err := exec.LookPath("brew"); err == nil {
 		fmt.Println("   installing docker-compose via homebrew...")
 		cmd := exec.Command("brew", "install", "docker-compose")
@@ -163,7 +171,7 @@ func installDockerCompose() error {
 		}
 		return nil
 	}
-	
+
 	return fmt.Errorf("automatic installation not supported for this os")
 }
 
@@ -183,19 +191,19 @@ func startDockerDaemon() error {
 		if err := startCmd.Run(); err != nil {
 			return fmt.Errorf("failed to start docker with systemctl: %w", err)
 		}
-		
+
 		enableCmd := exec.Command("systemctl", "enable", "docker")
 		if err := enableCmd.Run(); err != nil {
 			fmt.Printf("   warning: failed to enable docker on boot: %v\n", err)
 		}
 		return nil
 	}
-	
+
 	if err := checkCommand("service", "--version"); err == nil {
 		fmt.Println("   starting docker with service...")
 		return exec.Command("service", "docker", "start").Run()
 	}
-	
+
 	if _, err := exec.LookPath("open"); err == nil {
 		fmt.Println("   opening docker desktop...")
 		if err := exec.Command("open", "-a", "Docker").Run(); err == nil {
@@ -204,11 +212,11 @@ func startDockerDaemon() error {
 				if err := checkCommand("docker", "info"); err == nil {
 					return nil
 				}
-				exec.Command("sleep", "1").Run()
+				_ = exec.Command("sleep", "1").Run()
 			}
 			return fmt.Errorf("docker desktop did not start in time")
 		}
 	}
-	
+
 	return fmt.Errorf("unable to start docker daemon automatically")
 }

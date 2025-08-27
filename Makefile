@@ -47,10 +47,33 @@ clean:
 	@rm -f $(BINARY_NAME)
 	@echo "$(GREEN)Clean complete!$(NC)"
 
-## test: Run tests
+## test: Run all tests with coverage
 test:
-	@echo "$(GREEN)Running tests...$(NC)"
-	@go test -v ./...
+	@echo "$(GREEN)Running tests with coverage...$(NC)"
+	@go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+	@echo "$(GREEN)Coverage report:$(NC)"
+	@go tool cover -func=coverage.out
+
+## test-unit: Run unit tests only
+test-unit:
+	@echo "$(GREEN)Running unit tests...$(NC)"
+	@go test -v -short ./tests/unit/...
+
+## test-integration: Run integration tests
+test-integration:
+	@echo "$(GREEN)Running integration tests...$(NC)"
+	@RUN_INTEGRATION_TESTS=true go test -v -tags=integration ./tests/integration/...
+
+## test-coverage: Generate HTML coverage report
+test-coverage: test
+	@echo "$(GREEN)Generating HTML coverage report...$(NC)"
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "$(GREEN)Coverage report generated: coverage.html$(NC)"
+
+## test-benchmark: Run benchmarks
+test-benchmark:
+	@echo "$(GREEN)Running benchmarks...$(NC)"
+	@go test -bench=. -benchmem ./...
 
 ## run: Run the CLI directly
 run:
@@ -82,7 +105,19 @@ vet:
 lint:
 	@echo "$(GREEN)Running linters...$(NC)"
 	@which golangci-lint > /dev/null || (echo "$(RED)golangci-lint not installed$(NC)" && exit 1)
-	@golangci-lint run
+	@golangci-lint run --config=.golangci.yml
+
+## lint-fix: Run golangci-lint with auto-fix
+lint-fix:
+	@echo "$(GREEN)Running linters with auto-fix...$(NC)"
+	@which golangci-lint > /dev/null || (echo "$(RED)golangci-lint not installed$(NC)" && exit 1)
+	@golangci-lint run --fix --config=.golangci.yml
+
+## install-tools: Install development tools
+install-tools:
+	@echo "$(GREEN)Installing development tools...$(NC)"
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@echo "$(GREEN)Tools installed!$(NC)"
 
 ## build-all: Build for multiple platforms
 build-all:
