@@ -1,14 +1,17 @@
 version: '3.8'
 
+# Hybrid Core mode - Core repo cloned, UI from Docker image
+# All services run in Docker for simplicity
+
 networks:
   kubeorchestra-net:
     driver: bridge
-    name: kubeorchestra-network
+    name: kubeorchestra-network-hybrid
 
 services:
   postgres:
     image: postgres:14
-    container_name: kubeorchestra-postgres
+    container_name: kubeorchestra-postgres-hybrid
     restart: unless-stopped
     networks:
       - kubeorchestra-net
@@ -19,8 +22,6 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     ports:
       - "5432:5432"
-    expose:
-      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -30,16 +31,20 @@ services:
       retries: 5
       start_period: 10s
 
+  # Core runs in container with mounted code for hot reload
+  # This way backend devs don't need Go installed locally
   core:
-    image: ghcr.io/kubeorchestra/core:latest
-    container_name: kubeorchestra-core
+    image: cosmtrek/air:latest
+    container_name: kubeorchestra-core-hybrid
     restart: unless-stopped
     networks:
       - kubeorchestra-net
+    volumes:
+      - ../core:/app
+      - go-modules:/go/pkg/mod  # Cache Go modules
+    working_dir: /app
     ports:
       - "3000:3000"
-    expose:
-      - "3000"
     environment:
       DB_HOST: postgres
       DB_NAME: kubeorchestra
@@ -49,23 +54,26 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    command: air
 
   ui:
     image: ghcr.io/kubeorchestra/ui:latest
-    container_name: kubeorchestra-ui
+    container_name: kubeorchestra-ui-hybrid
     restart: unless-stopped
     networks:
       - kubeorchestra-net
     ports:
       - "3001:3001"
-    expose:
-      - "3001"
     environment:
+      # Both use internal Docker network names
       NEXT_PUBLIC_API_URL: http://localhost:3000
-      API_URL_INTERNAL: http://core:3000
+      API_URL: http://core:3000
+      PORT: 3001
     depends_on:
       - core
 
 volumes:
   postgres_data:
-    name: kubeorchestra_postgres_data
+    name: kubeorchestra_postgres_data_hybrid
+  go-modules:
+    name: kubeorchestra_go_modules

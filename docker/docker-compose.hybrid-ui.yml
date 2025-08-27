@@ -1,14 +1,17 @@
 version: '3.8'
 
+# Hybrid UI mode - UI runs on host, Core from Docker image
+# PostgreSQL and Core run in Docker
+
 networks:
   kubeorchestra-net:
     driver: bridge
-    name: kubeorchestra-network
+    name: kubeorchestra-network-hybrid
 
 services:
   postgres:
     image: postgres:14
-    container_name: kubeorchestra-postgres
+    container_name: kubeorchestra-postgres-hybrid
     restart: unless-stopped
     networks:
       - kubeorchestra-net
@@ -19,8 +22,6 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     ports:
       - "5432:5432"
-    expose:
-      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -32,14 +33,12 @@ services:
 
   core:
     image: ghcr.io/kubeorchestra/core:latest
-    container_name: kubeorchestra-core
+    container_name: kubeorchestra-core-hybrid
     restart: unless-stopped
     networks:
       - kubeorchestra-net
     ports:
       - "3000:3000"
-    expose:
-      - "3000"
     environment:
       DB_HOST: postgres
       DB_NAME: kubeorchestra
@@ -50,22 +49,9 @@ services:
       postgres:
         condition: service_healthy
 
-  ui:
-    image: ghcr.io/kubeorchestra/ui:latest
-    container_name: kubeorchestra-ui
-    restart: unless-stopped
-    networks:
-      - kubeorchestra-net
-    ports:
-      - "3001:3001"
-    expose:
-      - "3001"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3000
-      API_URL_INTERNAL: http://core:3000
-    depends_on:
-      - core
+# UI runs on host: cd ui && npm install && npm run dev (port 3001)
+# UI connects to Core at localhost:3000
 
 volumes:
   postgres_data:
-    name: kubeorchestra_postgres_data
+    name: kubeorchestra_postgres_data_hybrid

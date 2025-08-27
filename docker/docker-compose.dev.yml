@@ -1,62 +1,33 @@
-# Development environment with local code mounting
 version: '3.8'
+
+# Development mode - both UI and Core run on host
+# Only PostgreSQL runs in Docker
 
 services:
   postgres:
-    image: postgres:16-alpine
-    restart: always
+    image: postgres:14
+    container_name: kubeorchestra-postgres-dev
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: kubeorch_user
-      POSTGRES_PASSWORD: kubeorch_password
-      POSTGRES_DB: kubeorch_db
+      POSTGRES_DB: kubeorchestra
+      POSTGRES_USER: kubeorchestra
+      POSTGRES_PASSWORD: kubeorchestra
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kubeorch_user -d kubeorch_db"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U kubeorchestra -d kubeorchestra"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
-  core:
-    build:
-      context: ../core
-      dockerfile: ../cli/docker/Dockerfile.core.dev
-    restart: always
-    ports:
-      - "3000:3000"
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: kubeorch_user
-      DB_PASSWORD: kubeorch_password
-      DB_NAME: kubeorch_db
-      ENV: development
-    volumes:
-      - ../core:/app
-      - /app/vendor  # Preserve Go modules
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: air  # Hot reload for Go
-
-  ui:
-    build:
-      context: ../ui
-      dockerfile: ../cli/docker/Dockerfile.ui.dev
-    restart: always
-    ports:
-      - "3001:3001"  # UI runs on 3001 internally
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3000
-      NODE_ENV: development
-    volumes:
-      - ../ui:/app
-      - /app/node_modules  # Preserve node_modules
-    depends_on:
-      - core
-    command: npm run dev
+# UI runs on host: cd ui && npm install && npm run dev (port 3001)
+# Core runs on host: cd core && air (port 3000)
+# Both connect to PostgreSQL at localhost:5432
 
 volumes:
   postgres_data:
+    name: kubeorchestra_postgres_data_dev

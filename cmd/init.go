@@ -71,8 +71,8 @@ func setupProduction() error {
 	fmt.Println("   No repositories will be cloned.")
 	fmt.Println("   Docker images will be used for both UI and Core.")
 	
-	if err := checkDocker(); err != nil {
-		return fmt.Errorf("Docker check failed: %w", err)
+	if err := validateDockerCompose(); err != nil {
+		return err
 	}
 	
 	dirs := []string{"docker", "scripts"}
@@ -86,8 +86,8 @@ func setupProduction() error {
 	fmt.Println("\n📝 Image tags that will be used:")
 	fmt.Println("   - ghcr.io/kubeorchestra/ui:latest")
 	fmt.Println("   - ghcr.io/kubeorchestra/core:latest")
-	fmt.Println("\n   You can specify versions with: orchcli run --version=v1.2.3")
-	fmt.Println("   Run 'orchcli run' to start services with latest images")
+	fmt.Println("\n   You can specify versions with: orchcli start --version=v1.2.3")
+	fmt.Println("   Run 'orchcli start' to start services with latest images")
 	return nil
 }
 
@@ -161,11 +161,11 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	fmt.Println("\n📝 Next steps:")
 	
 	if cloneUI && cloneCore {
-		fmt.Println("   1. Run 'orchcli dev start' to start both UI and Core locally")
+		fmt.Println("   1. Run 'orchcli start' to start both UI and Core locally")
 	} else if cloneUI {
-		fmt.Println("   1. Run 'orchcli dev start --ui-only' to start UI locally with Core from Docker")
+		fmt.Println("   1. Run 'orchcli start' to start UI locally with Core from Docker")
 	} else if cloneCore {
-		fmt.Println("   1. Run 'orchcli dev start --core-only' to start Core locally with UI from Docker")
+		fmt.Println("   1. Run 'orchcli start' to start Core locally with UI from Docker")
 	}
 	
 	fmt.Println("   2. Make your changes in the cloned repositories")
@@ -227,8 +227,8 @@ func checkPrerequisites() error {
 		}
 	}
 	
-	if err := checkDocker(); err != nil {
-		return fmt.Errorf("Docker check failed: %w", err)
+	if err := validateDockerCompose(); err != nil {
+		return err
 	}
 	
 	return nil
@@ -256,31 +256,7 @@ func validateAndCheckDirs(checkUI, checkCore bool) error {
 	return nil
 }
 
-func checkDocker() error {
-	if err := checkCommand("docker", "--version"); err != nil {
-		return fmt.Errorf("docker is not installed. Please install Docker first")
-	}
-	
-	cmd := exec.Command("docker", "info")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Docker daemon is not running. Please start Docker")
-	}
-	
-	return nil
-}
 
-func checkCommand(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	return cmd.Run()
-}
-
-func dirExists(path string) bool {
-	info, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return info != nil && info.IsDir()
-}
 
 func cloneRepo(url, path string) error {
 	if dirExists(path) {
@@ -369,20 +345,34 @@ func installNodeJS() error {
 	if _, err := os.Stat("/etc/debian_version"); err == nil {
 		fmt.Println("   installing via apt...")
 		
-		exec.Command("apt-get", "update").Run()
-		exec.Command("apt-get", "install", "-y", "curl").Run()
+		updateCmd := exec.Command("apt-get", "update")
+		updateCmd.Stdout = os.Stdout
+		updateCmd.Stderr = os.Stderr
+		if err := updateCmd.Run(); err != nil {
+			return fmt.Errorf("failed to update package list: %w", err)
+		}
+		
+		curlCmd := exec.Command("apt-get", "install", "-y", "curl")
+		curlCmd.Stdout = os.Stdout
+		curlCmd.Stderr = os.Stderr
+		if err := curlCmd.Run(); err != nil {
+			return fmt.Errorf("failed to install curl: %w", err)
+		}
 		
 		setupCmd := exec.Command("bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -")
 		setupCmd.Stdout = os.Stdout
 		setupCmd.Stderr = os.Stderr
 		if err := setupCmd.Run(); err != nil {
-			return err
+			return fmt.Errorf("failed to setup node.js repository: %w", err)
 		}
 		
 		installCmd := exec.Command("apt-get", "install", "-y", "nodejs")
 		installCmd.Stdout = os.Stdout
 		installCmd.Stderr = os.Stderr
-		return installCmd.Run()
+		if err := installCmd.Run(); err != nil {
+			return fmt.Errorf("failed to install nodejs: %w", err)
+		}
+		return nil
 	}
 	
 	if _, err := exec.LookPath("brew"); err == nil {
@@ -390,7 +380,10 @@ func installNodeJS() error {
 		cmd := exec.Command("brew", "install", "node")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		return cmd.Run()
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to install node via brew: %w", err)
+		}
+		return nil
 	}
 	
 	return fmt.Errorf("automatic installation not supported for this os")
@@ -400,12 +393,20 @@ func installGo() error {
 	if _, err := os.Stat("/etc/debian_version"); err == nil {
 		fmt.Println("   installing go via apt...")
 		
-		exec.Command("apt-get", "update").Run()
+		updateCmd := exec.Command("apt-get", "update")
+		updateCmd.Stdout = os.Stdout
+		updateCmd.Stderr = os.Stderr
+		if err := updateCmd.Run(); err != nil {
+			return fmt.Errorf("failed to update package list: %w", err)
+		}
 		
 		installCmd := exec.Command("apt-get", "install", "-y", "golang-go")
 		installCmd.Stdout = os.Stdout
 		installCmd.Stderr = os.Stderr
-		return installCmd.Run()
+		if err := installCmd.Run(); err != nil {
+			return fmt.Errorf("failed to install golang-go: %w", err)
+		}
+		return nil
 	}
 	
 	if _, err := exec.LookPath("brew"); err == nil {
@@ -413,7 +414,10 @@ func installGo() error {
 		cmd := exec.Command("brew", "install", "go")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		return cmd.Run()
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to install go via brew: %w", err)
+		}
+		return nil
 	}
 	
 	return fmt.Errorf("automatic installation not supported for this os")
@@ -423,12 +427,20 @@ func installGit() error {
 	if _, err := os.Stat("/etc/debian_version"); err == nil {
 		fmt.Println("   installing git via apt...")
 		
-		exec.Command("apt-get", "update").Run()
+		updateCmd := exec.Command("apt-get", "update")
+		updateCmd.Stdout = os.Stdout
+		updateCmd.Stderr = os.Stderr
+		if err := updateCmd.Run(); err != nil {
+			return fmt.Errorf("failed to update package list: %w", err)
+		}
 		
 		installCmd := exec.Command("apt-get", "install", "-y", "git")
 		installCmd.Stdout = os.Stdout
 		installCmd.Stderr = os.Stderr
-		return installCmd.Run()
+		if err := installCmd.Run(); err != nil {
+			return fmt.Errorf("failed to install git: %w", err)
+		}
+		return nil
 	}
 	
 	if _, err := exec.LookPath("brew"); err == nil {
@@ -436,7 +448,10 @@ func installGit() error {
 		cmd := exec.Command("brew", "install", "git")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		return cmd.Run()
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to install git via brew: %w", err)
+		}
+		return nil
 	}
 	
 	return fmt.Errorf("automatic installation not supported for this os")
