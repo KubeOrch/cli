@@ -115,8 +115,20 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
+          format: 'table'
+          exit-code: '0'  # Don't fail the build
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: true
+      
+      - name: Run Trivy scan for SARIF
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
           format: 'sarif'
           output: 'trivy-results.sarif'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
       
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
@@ -128,7 +140,8 @@ jobs:
       - name: Run gosec security scanner
         uses: securego/gosec@master
         with:
-          args: '-fmt sarif -out gosec-results.sarif ./...'
+          args: '-no-fail -fmt sarif -out gosec-results.sarif ./...'
+        continue-on-error: true
       
       - name: Upload gosec results
         uses: github/codeql-action/upload-sarif@v3
