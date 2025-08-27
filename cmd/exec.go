@@ -54,6 +54,7 @@ func runExec(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if container is running
+	// #nosec G204 -- containerName is validated from a fixed allowlist above
 	checkCmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.Names}}")
 	output, err := checkCmd.Output()
 	if err != nil || strings.TrimSpace(string(output)) == "" {
@@ -78,6 +79,7 @@ func runExec(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// #nosec G204 -- dockerArgs are constructed from validated inputs
 	execCmd := exec.Command("docker", dockerArgs...)
 	execCmd.Stdout = os.Stdout
 	execCmd.Stderr = os.Stderr

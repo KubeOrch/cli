@@ -66,6 +66,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 
 	dockerCompose := getDockerComposeCommand()
 	dockerCompose = append(dockerCompose, cmdArgs...)
+	// #nosec G204 -- dockerCompose command is from a fixed set, cmdArgs are controlled
 	composeCmd := exec.Command(dockerCompose[0], dockerCompose[1:]...)
 	composeCmd.Stdout = os.Stdout
 	composeCmd.Stderr = os.Stderr

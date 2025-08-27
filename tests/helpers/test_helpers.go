@@ -1,3 +1,4 @@
+// Package helpers provides test utility functions for the OrchCLI test suite.
 package helpers
 
 import (

@@ -97,15 +97,15 @@ func (suite *CLIIntegrationTestSuite) TestStartWithoutInit() {
 	// Should fail because docker-compose files don't exist or are empty
 	assert.Error(suite.T(), err)
 	// Check for either error message
-	errorFound := strings.Contains(string(output), "not found") || 
-	              strings.Contains(string(output), "empty compose file") ||
-	              strings.Contains(string(output), "failed to start")
+	errorFound := strings.Contains(string(output), "not found") ||
+		strings.Contains(string(output), "empty compose file") ||
+		strings.Contains(string(output), "failed to start")
 	assert.True(suite.T(), errorFound, "Expected error message not found in output")
 }
 
 func (suite *CLIIntegrationTestSuite) TestStatusCommand() {
 	os.Chdir(suite.helper.TempDir)
-	
+
 	// Create docker directory and compose file so status can run
 	suite.helper.CreateTempDir("docker")
 	suite.helper.CreateTempFile("docker/docker-compose.prod.yml", "version: '3.8'\nservices:\n  postgres:\n    image: postgres:14")

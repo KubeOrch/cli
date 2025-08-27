@@ -57,9 +57,9 @@ func (suite *UtilsTestSuite) TestGetComposeFile() {
 	// Test compose file selection logic
 	testCases := []struct {
 		name      string
+		expected  string
 		uiLocal   bool
 		coreLocal bool
-		expected  string
 	}{
 		{
 			name:      "Production mode",
@@ -120,20 +120,20 @@ func (suite *UtilsTestSuite) TestValidateDockerCompose() {
 func (suite *UtilsTestSuite) TestJoinArgs() {
 	// Test argument joining for shell commands
 	testCases := []struct {
-		args     []string
 		expected string
+		args     []string
 	}{
 		{
-			args:     []string{"arg1", "arg2"},
 			expected: "arg1 arg2",
+			args:     []string{"arg1", "arg2"},
 		},
 		{
-			args:     []string{"arg with spaces", "arg2"},
 			expected: "'arg with spaces' arg2",
+			args:     []string{"arg with spaces", "arg2"},
 		},
 		{
-			args:     []string{"arg'with'quotes", "arg2"},
 			expected: "'arg'\"'\"'with'\"'\"'quotes' arg2",
+			args:     []string{"arg'with'quotes", "arg2"},
 		},
 	}
 

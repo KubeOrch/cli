@@ -1,3 +1,4 @@
+// Package mocks provides mock implementations for testing the OrchCLI.
 package mocks
 
 import (
@@ -29,8 +30,8 @@ func (m *MockCommandExecutor) LookPath(file string) (string, error) {
 
 // MockCmd represents a mock command for testing
 type MockCmd struct {
-	mock.Mock
 	*exec.Cmd
+	mock.Mock
 }
 
 func (m *MockCmd) Run() error {
