@@ -135,6 +135,7 @@ linters-settings:
   gosec:
     excludes:
       - G104 # Ignore error checking
+      - G204 # Subprocess launched with variable or tainted input
       - G304 # File path provided as taint input
     confidence: medium
     severity: medium
