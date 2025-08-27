@@ -88,14 +88,12 @@ linters-settings:
     min-complexity: 15
   
   mnd:
-    settings:
-      mnd:
-        checks:
-          - argument
-          - case
-          - condition
-          - operation
-          - return
+    checks:
+      - argument
+      - case
+      - condition
+      - operation
+      - return
   
   govet:
     enable-all: true
@@ -107,7 +105,6 @@ linters-settings:
     locale: US
   
   nolintlint:
-    allow-leading-space: false
     allow-unused: false
     require-explanation: true
     require-specific: true
@@ -146,7 +143,6 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
   new: false
-  uniq-by-line: true
   exclude-dirs:
     - vendor
     - third_party
