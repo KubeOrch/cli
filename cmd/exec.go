@@ -54,7 +54,8 @@ func runExec(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if container is running
-	checkCmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.Names}}") // #nosec G204 -- containerName is validated from a fixed allowlist above
+	// #nosec G204 -- containerName is validated from a fixed allowlist above
+	checkCmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.Names}}")
 	output, err := checkCmd.Output()
 	if err != nil || strings.TrimSpace(string(output)) == "" {
 		return fmt.Errorf("service %s is not running. Start it with: orchcli start", service)
@@ -78,7 +79,8 @@ func runExec(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	execCmd := exec.Command("docker", dockerArgs...) // #nosec G204 -- dockerArgs are constructed from validated inputs
+	// #nosec G204 -- dockerArgs are constructed from validated inputs
+	execCmd := exec.Command("docker", dockerArgs...)
 	execCmd.Stdout = os.Stdout
 	execCmd.Stderr = os.Stderr
 	execCmd.Stdin = os.Stdin
