@@ -1,0 +1,6 @@
+version: '3.8'
+
+services:
+  test-service:
+    image: alpine:latest
+    command: echo "test"

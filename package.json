@@ -1,0 +1,55 @@
+{
+  "name": "@kubeorchestra/cli",
+  "version": "0.0.2",
+  "description": "OrchCLI - KubeOrchestra Developer CLI",
+  "main": "npm/index.js",
+  "bin": {
+    "orchcli": "./npm/bin/orchcli"
+  },
+  "scripts": {
+    "postinstall": "node npm/scripts/postinstall.js",
+    "prepack": "node npm/scripts/prepack.js",
+    "test": "echo \"Tests are run via Go test suite\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KubeOrchestra/cli.git"
+  },
+  "keywords": [
+    "kubeorchestra",
+    "kubernetes",
+    "orchestration",
+    "cli",
+    "developer-tools",
+    "devops",
+    "docker",
+    "container"
+  ],
+  "author": "KubeOrchestra Team",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/KubeOrchestra/cli/issues"
+  },
+  "homepage": "https://github.com/KubeOrchestra/cli#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "npm/",
+    "README.md",
+    "LICENSE"
+  ]
+}

@@ -1,3 +1,4 @@
+// Package cmd contains all CLI commands for OrchCLI
 package cmd
 
 import (
@@ -26,7 +27,7 @@ func runDebug(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("🔍 debugging service connectivity...")
 	fmt.Println()
-	
+
 	fmt.Println("📡 docker networks:")
 	networkCmd := exec.Command("docker", "network", "ls")
 	networkOutput, _ := networkCmd.Output()
@@ -37,7 +38,7 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		}
 	}
 	fmt.Println()
-	
+
 	fmt.Println("📦 running containers:")
 	psCmd := exec.Command("docker", "ps", "--format", "table {{.Names}}\t{{.Status}}\t{{.Ports}}")
 	psOutput, _ := psCmd.Output()
@@ -48,23 +49,23 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		}
 	}
 	fmt.Println()
-	
+
 	fmt.Println("💾 testing database connectivity:")
-	
+
 	coreContainers := []string{
 		"kubeorchestra-core",
 		"kubeorchestra-core-dev",
 		"kubeorchestra-core-hybrid",
 	}
-	
+
 	coreFound := false
 	for _, container := range coreContainers {
 		checkCmd := exec.Command("docker", "ps", "-q", "-f", fmt.Sprintf("name=%s", container))
 		if output, err := checkCmd.Output(); err == nil && len(output) > 0 {
 			coreFound = true
-			
+
 			fmt.Printf("   testing from %s to postgres...\n", container)
-			
+
 			pingCmd := exec.Command("docker", "exec", container, "sh", "-c", "nc -zv postgres 5432 2>&1 || echo 'nc not available'")
 			pingOutput, pingErr := pingCmd.Output()
 			if pingErr != nil {
@@ -85,29 +86,29 @@ func runDebug(cmd *cobra.Command, args []string) error {
 					fmt.Printf("   connectivity test result: %s\n", output)
 				}
 			}
-			
+
 			break
 		}
 	}
-	
+
 	if !coreFound {
 		fmt.Println("   ⚠️  core container not found or not running")
 	}
-	
+
 	fmt.Println()
 	fmt.Println("🔌 testing direct postgres access:")
-	
+
 	postgresContainers := []string{
 		"kubeorchestra-postgres",
 		"kubeorchestra-postgres-dev",
 		"kubeorchestra-postgres-hybrid",
 	}
-	
+
 	for _, container := range postgresContainers {
 		testCmd := exec.Command("docker", "exec", container, "pg_isready", "-U", "kubeorchestra", "-d", "kubeorchestra")
 		if output, err := testCmd.Output(); err == nil {
 			fmt.Printf("   ✅ %s is ready: %s", container, strings.TrimSpace(string(output)))
-			
+
 			connTestCmd := exec.Command("docker", "exec", container, "psql", "-U", "kubeorchestra", "-d", "kubeorchestra", "-c", "SELECT 1")
 			if _, err := connTestCmd.Output(); err == nil {
 				fmt.Println("   ✅ database connection test successful")
@@ -115,7 +116,7 @@ func runDebug(cmd *cobra.Command, args []string) error {
 			break
 		}
 	}
-	
+
 	fmt.Println()
 	fmt.Println("📋 network configuration:")
 	fmt.Println("   all services are on the same docker network")
@@ -125,6 +126,6 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	fmt.Println("💡 connection strings:")
 	fmt.Println("   from containers: postgres://kubeorchestra:kubeorchestra@postgres:5432/kubeorchestra")
 	fmt.Println("   from host:       postgres://kubeorchestra:kubeorchestra@localhost:5432/kubeorchestra")
-	
+
 	return nil
 }

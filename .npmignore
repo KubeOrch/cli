@@ -1,0 +1,12 @@
+# Ignore everything except what we need for npm
+*
+!package.json
+!README.md
+!LICENSE
+!npm/
+!npm/**/*
+
+# But exclude binaries from npm folder
+npm/bin/orchcli-bin
+npm/bin/orchcli-bin.exe
+npm/bin/*.exe

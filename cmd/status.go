@@ -29,15 +29,15 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	coreLocal := dirExists("./core")
 
 	composeFile := getComposeFile(uiLocal, coreLocal)
-	
+
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
 		fmt.Println("⚠️  no services are running")
 		return nil
 	}
-	
+
 	fmt.Println("🔍 checking kubeorchestra services...")
 	fmt.Println()
-	
+
 	dockerCompose := getDockerComposeCommand()
 	psArgs := append(dockerCompose, "-f", composeFile, "ps")
 	psCmd := exec.Command(psArgs[0], psArgs[1:]...)
@@ -45,10 +45,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to check service status: %w", err)
 	}
-	
+
 	fmt.Println("📊 service status:")
 	fmt.Println(string(psOutput))
-	
+
 	fmt.Println("💾 database status:")
 	dbCheckCmd := exec.Command("docker", "exec", "kubeorchestra-postgres", "pg_isready", "-U", "kubeorchestra")
 	dbOutput, dbErr := dbCheckCmd.Output()
@@ -62,7 +62,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
-	
+
 	if dbErr != nil {
 		fmt.Println("   ❌ postgres is not healthy or not running")
 	} else {
@@ -73,18 +73,18 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			fmt.Println("   ⚠️  postgres status:", output)
 		}
 	}
-	
+
 	fmt.Println()
 	fmt.Println("🌐 service endpoints:")
 	fmt.Println("   ui:       http://localhost:3001")
-	fmt.Println("   api:      http://localhost:3000") 
+	fmt.Println("   api:      http://localhost:3000")
 	fmt.Println("   postgres: localhost:5432")
-	
+
 	fmt.Println()
 	fmt.Println("💡 tips:")
 	fmt.Println("   view logs:    orchcli logs")
 	fmt.Println("   stop services: orchcli stop")
 	fmt.Println("   restart:      orchcli restart")
-	
+
 	return nil
 }

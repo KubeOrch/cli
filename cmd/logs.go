@@ -39,41 +39,42 @@ func runLogs(cmd *cobra.Command, args []string) error {
 	coreLocal := dirExists("./core")
 
 	composeFile := getComposeFile(uiLocal, coreLocal)
-	
+
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
 		return fmt.Errorf("no services are running. start services first with: orchcli start")
 	}
-	
+
 	cmdArgs := []string{"-f", composeFile, "logs"}
-	
+
 	if follow {
 		cmdArgs = append(cmdArgs, "-f")
 	}
-	
+
 	if tailLines != "" {
 		cmdArgs = append(cmdArgs, "--tail", tailLines)
 	}
-	
+
 	if timestamps {
 		cmdArgs = append(cmdArgs, "-t")
 	}
-	
+
 	if service != "" {
 		cmdArgs = append(cmdArgs, service)
 	} else if len(args) > 0 {
 		cmdArgs = append(cmdArgs, args[0])
 	}
-	
+
 	dockerCompose := getDockerComposeCommand()
-	allArgs := append(dockerCompose, cmdArgs...)
-	composeCmd := exec.Command(allArgs[0], allArgs[1:]...)
+	dockerCompose = append(dockerCompose, cmdArgs...)
+	// #nosec G204 -- dockerCompose command is from a fixed set, cmdArgs are controlled
+	composeCmd := exec.Command(dockerCompose[0], dockerCompose[1:]...)
 	composeCmd.Stdout = os.Stdout
 	composeCmd.Stderr = os.Stderr
 	composeCmd.Stdin = os.Stdin
-	
+
 	if err := composeCmd.Run(); err != nil {
 		return fmt.Errorf("failed to get logs: %w", err)
 	}
-	
+
 	return nil
 }

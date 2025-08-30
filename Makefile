@@ -47,10 +47,33 @@ clean:
 	@rm -f $(BINARY_NAME)
 	@echo "$(GREEN)Clean complete!$(NC)"
 
-## test: Run tests
+## test: Run all tests with coverage
 test:
-	@echo "$(GREEN)Running tests...$(NC)"
-	@go test -v ./...
+	@echo "$(GREEN)Running tests with coverage...$(NC)"
+	@go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+	@echo "$(GREEN)Coverage report:$(NC)"
+	@go tool cover -func=coverage.out
+
+## test-unit: Run unit tests only
+test-unit:
+	@echo "$(GREEN)Running unit tests...$(NC)"
+	@go test -v -short ./tests/unit/...
+
+## test-integration: Run integration tests
+test-integration:
+	@echo "$(GREEN)Running integration tests...$(NC)"
+	@RUN_INTEGRATION_TESTS=true go test -v -tags=integration ./tests/integration/...
+
+## test-coverage: Generate HTML coverage report
+test-coverage: test
+	@echo "$(GREEN)Generating HTML coverage report...$(NC)"
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "$(GREEN)Coverage report generated: coverage.html$(NC)"
+
+## test-benchmark: Run benchmarks
+test-benchmark:
+	@echo "$(GREEN)Running benchmarks...$(NC)"
+	@go test -bench=. -benchmem ./...
 
 ## run: Run the CLI directly
 run:
@@ -82,15 +105,47 @@ vet:
 lint:
 	@echo "$(GREEN)Running linters...$(NC)"
 	@which golangci-lint > /dev/null || (echo "$(RED)golangci-lint not installed$(NC)" && exit 1)
-	@golangci-lint run
+	@golangci-lint run --config=.golangci.yml
+
+## lint-fix: Run golangci-lint with auto-fix
+lint-fix:
+	@echo "$(GREEN)Running linters with auto-fix...$(NC)"
+	@which golangci-lint > /dev/null || (echo "$(RED)golangci-lint not installed$(NC)" && exit 1)
+	@golangci-lint run --fix --config=.golangci.yml
+
+## install-tools: Install development tools
+install-tools:
+	@echo "$(GREEN)Installing development tools...$(NC)"
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@echo "$(GREEN)Tools installed!$(NC)"
 
 ## build-all: Build for multiple platforms
 build-all:
 	@echo "$(GREEN)Building for multiple platforms...$(NC)"
 	@mkdir -p dist
-	@GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)-darwin-amd64 main.go
-	@GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)-darwin-arm64 main.go
-	@GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)-linux-amd64 main.go
-	@GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)-linux-arm64 main.go
-	@GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)-windows-amd64.exe main.go
+	@GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)_darwin_amd64 main.go
+	@GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)_darwin_arm64 main.go
+	@GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)_linux_amd64 main.go
+	@GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)_linux_arm64 main.go
+	@GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY_NAME)_windows_amd64.exe main.go
 	@echo "$(GREEN)Multi-platform build complete! Binaries in dist/$(NC)"
+
+## npm-build: Build binary for npm package
+npm-build:
+	@echo "$(GREEN)Building binary for npm package...$(NC)"
+	@VERSION=$$(node -p "require('./package.json').version") && \
+		go build -ldflags "-X 'github.com/kubeorchestra/cli/cmd.version=$$VERSION' -X 'github.com/kubeorchestra/cli/cmd.commit=$$(git rev-parse --short HEAD 2>/dev/null || echo 'release')' -X 'github.com/kubeorchestra/cli/cmd.buildDate=$$(date -u +"%Y-%m-%dT%H:%M:%SZ")'" -o npm/bin/$(BINARY_NAME)-bin main.go
+	@chmod +x npm/bin/$(BINARY_NAME)-bin
+	@echo "$(GREEN)NPM binary built!$(NC)"
+
+## npm-test: Test npm package locally
+npm-test: npm-build
+	@echo "$(GREEN)Testing npm package locally...$(NC)"
+	@npm pack
+	@echo "$(GREEN)Package created! Test with: npm install -g kubeorchestra-orchcli-*.tgz$(NC)"
+
+## npm-publish: Publish to npm registry
+npm-publish: npm-build
+	@echo "$(GREEN)Publishing to npm registry...$(NC)"
+	@npm publish --access public
+	@echo "$(GREEN)Published to npm!$(NC)"

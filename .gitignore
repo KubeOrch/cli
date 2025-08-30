@@ -31,6 +31,10 @@ coverage.txt
 # Node
 node_modules/
 npm/binaries/
+npm/bin/orchcli-bin
+npm/bin/*.exe
+*.tgz
+package/
 
 # Environment
 .env

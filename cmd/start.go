@@ -38,9 +38,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 	coreLocal := dirExists("./core")
 
 	fmt.Println("🚀 starting kubeorchestra services...")
-	
+
 	var composeFile string
-	
+
 	if !uiLocal && !coreLocal {
 		fmt.Println("   mode: production (using docker images)")
 		composeFile = "docker/docker-compose.prod.yml"
@@ -54,34 +54,34 @@ func runStart(cmd *cobra.Command, args []string) error {
 		fmt.Println("   mode: core development (core local, ui from image)")
 		composeFile = "docker/docker-compose.hybrid-core.yml"
 	}
-	
+
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
 		return fmt.Errorf("compose file %s not found. please ensure docker-compose files exist in docker/ directory", composeFile)
 	}
-	
+
 	args = []string{"-f", composeFile, "up"}
-	
+
 	if detach {
 		args = append(args, "-d")
 	}
-	
+
 	dockerCompose := getDockerComposeCommand()
 	cmdArgs := append(dockerCompose, args...)
 	composeCmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	composeCmd.Stdout = os.Stdout
 	composeCmd.Stderr = os.Stderr
 	composeCmd.Stdin = os.Stdin
-	
+
 	fmt.Printf("   running: %s %s\n", strings.Join(dockerCompose, " "), joinArgs(args))
-	
+
 	if err := composeCmd.Run(); err != nil {
 		return fmt.Errorf("failed to start services: %w", err)
 	}
-	
+
 	if detach {
 		fmt.Println("✅ docker services started in background")
 		fmt.Println()
-		
+
 		fmt.Println("⏳ waiting for postgres to be ready...")
 		if err := waitForPostgres(); err != nil {
 			fmt.Printf("⚠️  warning: %v\n", err)
@@ -89,9 +89,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 		} else {
 			fmt.Println("✅ postgres is ready")
 		}
-		
+
 		fmt.Println()
-		
+
 		// provide instructions based on what was initialized
 		if uiLocal && coreLocal {
 			fmt.Println("📝 next steps for development:")
@@ -124,16 +124,15 @@ func runStart(cmd *cobra.Command, args []string) error {
 			fmt.Println("   api: http://localhost:3000")
 			fmt.Println("   postgresql: localhost:5432")
 		}
-		
+
 		fmt.Println()
 		fmt.Println("🛑 stop docker services: orchcli stop")
 		fmt.Println("📝 view logs: orchcli logs")
 		fmt.Println("📊 check status: orchcli status")
 	}
-	
+
 	return nil
 }
-
 
 func waitForPostgres() error {
 	maxRetries := 30
@@ -142,7 +141,7 @@ func waitForPostgres() error {
 		"kubeorchestra-postgres-dev",
 		"kubeorchestra-postgres-hybrid",
 	}
-	
+
 	for i := 0; i < maxRetries; i++ {
 		for _, name := range containerNames {
 			cmd := exec.Command("docker", "exec", name, "pg_isready", "-U", "kubeorchestra", "-d", "kubeorchestra")
@@ -150,10 +149,9 @@ func waitForPostgres() error {
 				return nil
 			}
 		}
-		
+
 		exec.Command("sleep", "1").Run()
 	}
-	
+
 	return fmt.Errorf("postgres did not become ready in 30 seconds")
 }
-
