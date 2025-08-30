@@ -111,39 +111,39 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 
 	// Prepare tasks for concurrent execution
 	var cloneTasks []Task
-	
+
 	if cloneUI && cloneCore {
 		fmt.Println("📦 Cloning repositories concurrently...")
 	}
-	
+
 	// UI cloning task
 	var uiRepoURL string
 	var uiIsFork bool
 	if cloneUI {
 		uiRepoURL, uiIsFork = determineRepoURL(forkUI, "KubeOrchestra/ui")
 		cloneTasks = append(cloneTasks, Task{
-			Name:     "Clone UI repository",
-			Progress: NewProgressBar(fmt.Sprintf("Cloning UI from %s", uiRepoURL)),
 			Action: func() error {
 				return cloneRepo(uiRepoURL, "./ui")
 			},
+			Progress: NewProgressBar(fmt.Sprintf("Cloning UI from %s", uiRepoURL)),
+			Name:     "Clone UI repository",
 		})
 	}
-	
+
 	// Core cloning task
 	var coreRepoURL string
 	var coreIsFork bool
 	if cloneCore {
 		coreRepoURL, coreIsFork = determineRepoURL(forkCore, "KubeOrchestra/core")
 		cloneTasks = append(cloneTasks, Task{
-			Name:     "Clone Core repository",
-			Progress: NewProgressBar(fmt.Sprintf("Cloning Core from %s", coreRepoURL)),
 			Action: func() error {
 				return cloneRepo(coreRepoURL, "./core")
 			},
+			Progress: NewProgressBar(fmt.Sprintf("Cloning Core from %s", coreRepoURL)),
+			Name:     "Clone Core repository",
 		})
 	}
-	
+
 	// Execute cloning tasks concurrently
 	if len(cloneTasks) > 0 {
 		results := RunConcurrent(cloneTasks)
@@ -151,7 +151,7 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 			return err
 		}
 	}
-	
+
 	// Setup upstreams for forks (sequential as they're quick)
 	if cloneUI && uiIsFork {
 		fmt.Println("🔗 Setting up upstream for UI fork...")
@@ -159,38 +159,38 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 			return fmt.Errorf("failed to setup upstream for UI: %w", err)
 		}
 	}
-	
+
 	if cloneCore && coreIsFork {
 		fmt.Println("🔗 Setting up upstream for Core fork...")
 		if err := setupUpstream("./core", "https://github.com/KubeOrchestra/core"); err != nil {
 			return fmt.Errorf("failed to setup upstream for Core: %w", err)
 		}
 	}
-	
+
 	// Install dependencies concurrently
 	if !skipDeps {
 		var depTasks []Task
-		
+
 		if cloneUI {
 			depTasks = append(depTasks, Task{
-				Name:     "Install UI dependencies",
-				Progress: NewProgressBar("Installing UI dependencies (npm install)"),
 				Action:   installUIDependencies,
+				Progress: NewProgressBar("Installing UI dependencies (npm install)"),
+				Name:     "Install UI dependencies",
 			})
 		}
-		
+
 		if cloneCore {
 			depTasks = append(depTasks, Task{
-				Name:     "Download Core dependencies",
-				Progress: NewProgressBar("Downloading Core dependencies (go mod download)"),
 				Action:   installCoreDependencies,
+				Progress: NewProgressBar("Downloading Core dependencies (go mod download)"),
+				Name:     "Download Core dependencies",
 			})
 		}
-		
+
 		if len(depTasks) > 0 {
 			fmt.Println("\n📥 Installing dependencies concurrently...")
 			results := RunConcurrent(depTasks)
-			
+
 			// Show warnings for failed dependencies but don't fail
 			for _, result := range results {
 				if result.Error != nil {
