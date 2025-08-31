@@ -4,11 +4,23 @@ on:
   push:
     branches:
       - main
-      - master
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/test.yml'
+      - 'Makefile'
+      - '.golangci.yml'
   pull_request:
     branches:
       - main
-      - master
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/test.yml'
+      - 'Makefile'
+      - '.golangci.yml'
 
 permissions:
   contents: read

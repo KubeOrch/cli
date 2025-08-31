@@ -1,6 +1,9 @@
 # OrchCLI - KubeOrchestra Developer CLI
 
-OrchCLI is a command-line tool for developing with the KubeOrchestra platform. It streamlines local development, testing, and contribution workflows.
+[![Apache 2.0 License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Cloud Native](https://img.shields.io/badge/Cloud%20Native-orange.svg)](https://landscape.cncf.io/)
+
+OrchCLI is a command-line tool for developing with the KubeOrchestra platform. It streamlines local development, testing, and contribution workflows for cloud-native applications.
 
 ## Installation
 
@@ -38,6 +41,14 @@ git clone https://github.com/KubeOrchestra/cli
 cd cli
 make install
 ```
+
+## Features
+
+- **Concurrent Operations** - Fast parallel execution for cloning, pulling, and health checks
+- **Safe Configuration Management** - File locking prevents corruption during concurrent access
+- **Multiple Project Support** - Manage multiple KubeOrchestra projects seamlessly
+- **Auto-detection** - Automatically determines development mode based on cloned repositories
+- **Hot Reload** - All development modes support hot reload for rapid iteration
 
 ## Commands
 
@@ -120,6 +131,15 @@ orchcli start -d
 # Edit Core files locally - changes auto-reload
 # Access: UI at localhost:3001, API at localhost:3000
 ```
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md) - System design and development modes
+- [Configuration Management](docs/CONFIGURATION.md) - Config system with file locking
+- [Concurrent Operations](docs/CONCURRENT-OPERATIONS.md) - Parallel task execution
+- [Release Process](docs/RELEASE.md) - How to create releases
+- [Publishing](docs/PUBLISHING.md) - NPM and GitHub release process
+- [Automated Release](docs/AUTOMATED-RELEASE.md) - CI/CD pipeline details
 
 ## License
 
