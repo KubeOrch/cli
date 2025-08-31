@@ -15,11 +15,11 @@ type ProjectConfig struct {
 }
 
 type OrchConfig struct {
-	CurrentProject string                    `json:"current_project,omitempty"`
 	Projects       map[string]*ProjectConfig `json:"projects"`
+	CurrentProject string                    `json:"current_project,omitempty"`
 }
 
-func getConfigDir() (string, error) {
+func GetConfigDir() (string, error) {
 	execPath, err := os.Executable()
 	if err != nil {
 		homeDir, err := os.UserHomeDir()
@@ -31,16 +31,16 @@ func getConfigDir() (string, error) {
 	return filepath.Dir(execPath), nil
 }
 
-func getConfigPath() (string, error) {
-	configDir, err := getConfigDir()
+func GetConfigPath() (string, error) {
+	configDir, err := GetConfigDir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(configDir, "orchcli-config.json"), nil
 }
 
-func loadConfig() (*OrchConfig, error) {
-	configPath, err := getConfigPath()
+func LoadConfig() (*OrchConfig, error) {
+	configPath, err := GetConfigPath()
 	if err != nil {
 		return nil, err
 	}
@@ -67,14 +67,14 @@ func loadConfig() (*OrchConfig, error) {
 	return &config, nil
 }
 
-func saveConfig(config *OrchConfig) error {
-	configPath, err := getConfigPath()
+func SaveConfig(config *OrchConfig) error {
+	configPath, err := GetConfigPath()
 	if err != nil {
 		return err
 	}
 
 	configDir := filepath.Dir(configPath)
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -83,7 +83,7 @@ func saveConfig(config *OrchConfig) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -91,7 +91,7 @@ func saveConfig(config *OrchConfig) error {
 }
 
 func getCurrentProjectConfig() (*ProjectConfig, error) {
-	config, err := loadConfig()
+	config, err := LoadConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -115,18 +115,21 @@ func getCurrentProjectConfig() (*ProjectConfig, error) {
 }
 
 func setProjectConfig(projectPath string, uiPath, corePath string) error {
-	config, err := loadConfig()
+	config, err := LoadConfig()
 	if err != nil {
 		return err
 	}
 
-	mode := "production"
-	if uiPath != "" && corePath != "" {
+	var mode string
+	switch {
+	case uiPath != "" && corePath != "":
 		mode = "development"
-	} else if uiPath != "" {
+	case uiPath != "":
 		mode = "ui-dev"
-	} else if corePath != "" {
+	case corePath != "":
 		mode = "core-dev"
+	default:
+		mode = "production"
 	}
 
 	config.Projects[projectPath] = &ProjectConfig{
@@ -137,20 +140,23 @@ func setProjectConfig(projectPath string, uiPath, corePath string) error {
 	}
 	config.CurrentProject = projectPath
 
-	return saveConfig(config)
+	return SaveConfig(config)
 }
 
+
+// removeProjectConfig removes a project from the configuration (unused but kept for future use)
 func removeProjectConfig(projectPath string) error {
-	config, err := loadConfig()
+	config, err := LoadConfig()
 	if err != nil {
 		return err
 	}
 
 	delete(config.Projects, projectPath)
-	
+
 	if config.CurrentProject == projectPath {
 		config.CurrentProject = ""
 	}
 
-	return saveConfig(config)
+	return SaveConfig(config)
 }
+

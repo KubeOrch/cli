@@ -3,6 +3,7 @@ package unit
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kubeorchestra/cli/cmd"
@@ -72,10 +73,17 @@ echo "Docker Compose version v2.20.0"
 	assert.NoError(suite.T(), err)
 	assert.Contains(suite.T(), output, "Setting up OrchCLI for production testing")
 	assert.Contains(suite.T(), output, "Production environment ready")
+	assert.Contains(suite.T(), output, "Project initialized at:")
 
 	// Check directories were created
 	assert.DirExists(suite.T(), filepath.Join(suite.tempDir, "docker"))
 	assert.DirExists(suite.T(), filepath.Join(suite.tempDir, "scripts"))
+
+	// Check config was saved
+	config, err := cmd.LoadConfig()
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), config.Projects[suite.tempDir])
+	assert.Equal(suite.T(), "production", config.Projects[suite.tempDir].Mode)
 }
 
 func (suite *CommandTestSuite) TestInitWithInvalidFork() {
@@ -90,6 +98,10 @@ func (suite *CommandTestSuite) TestStartWithMissingComposeFile() {
 	_, err := cmd.ExecuteCommandC(rootCmd, "start")
 
 	assert.Error(suite.T(), err)
+	// The error could be either no project initialized or missing compose file
+	assert.True(suite.T(),
+		err.Error() == "no project initialized in current directory. Run 'orchcli init' first" ||
+			strings.Contains(err.Error(), "compose file"))
 }
 
 func (suite *CommandTestSuite) TestDebugCommand() {
@@ -124,13 +136,26 @@ esac
 }
 
 func (suite *CommandTestSuite) TestStatusCommand() {
+	// Initialize project first
+	config := &cmd.OrchConfig{
+		CurrentProject: suite.tempDir,
+		Projects: map[string]*cmd.ProjectConfig{
+			suite.tempDir: {
+				Path: suite.tempDir,
+				Mode: "production",
+			},
+		},
+	}
+	err := cmd.SaveConfig(config)
+	assert.NoError(suite.T(), err)
+
 	// Create compose file
 	os.MkdirAll(filepath.Join(suite.tempDir, "docker"), 0755)
 	composeContent := `version: '3.8'
 services:
   postgres:
     image: postgres:14`
-	err := os.WriteFile(filepath.Join(suite.tempDir, "docker/docker-compose.prod.yml"), []byte(composeContent), 0644)
+	err = os.WriteFile(filepath.Join(suite.tempDir, "docker/docker-compose.prod.yml"), []byte(composeContent), 0644)
 	assert.NoError(suite.T(), err)
 
 	// Create mock docker binary (not directory)

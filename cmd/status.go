@@ -37,7 +37,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	composeFile := getComposeFile(uiLocal, coreLocal)
 	composeFile = filepath.Join(projectConfig.Path, composeFile)
 
-	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
+	if _, statErr := os.Stat(composeFile); os.IsNotExist(statErr) {
 		fmt.Println("⚠️  no services are running")
 		return nil
 	}
@@ -46,7 +46,9 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	dockerCompose := getDockerComposeCommand()
-	psArgs := append(dockerCompose, "-f", composeFile, "ps")
+	psArgs := make([]string, 0, len(dockerCompose)+3)
+	psArgs = append(psArgs, dockerCompose...)
+	psArgs = append(psArgs, "-f", composeFile, "ps")
 	psCmd := exec.Command(psArgs[0], psArgs[1:]...)
 	psCmd.Dir = projectConfig.Path
 	psOutput, err := psCmd.Output()

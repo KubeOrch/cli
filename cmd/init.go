@@ -83,7 +83,7 @@ func setupProduction() error {
 
 	dirs := []string{"docker", "scripts"}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
@@ -240,11 +240,12 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	fmt.Printf("📁 Project initialized at: %s\n", cwd)
 	fmt.Println("\n📝 Next steps:")
 
-	if cloneUI && cloneCore {
+	switch {
+	case cloneUI && cloneCore:
 		fmt.Println("   1. Run 'orchcli start' to start both UI and Core locally")
-	} else if cloneUI {
+	case cloneUI:
 		fmt.Println("   1. Run 'orchcli start' to start UI locally with Core from Docker")
-	} else if cloneCore {
+	case cloneCore:
 		fmt.Println("   1. Run 'orchcli start' to start Core locally with UI from Docker")
 	}
 
@@ -336,7 +337,7 @@ func validateAndCheckDirs(checkUI, checkCore bool) error {
 		}
 		corePath := filepath.Join(cwd, "core")
 		if dirExists(corePath) {
-			return fmt.Errorf("Core directory already exists at %s. Please remove it first or use 'orchcli update'", corePath)
+			return fmt.Errorf("core directory already exists at %s. Please remove it first or use 'orchcli update'", corePath)
 		}
 	}
 

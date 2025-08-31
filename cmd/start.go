@@ -47,16 +47,17 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	var composeFile string
 
-	if !uiLocal && !coreLocal {
+	switch {
+	case !uiLocal && !coreLocal:
 		fmt.Println("   mode: production (using docker images)")
 		composeFile = filepath.Join(projectConfig.Path, "docker", "docker-compose.prod.yml")
-	} else if uiLocal && coreLocal {
+	case uiLocal && coreLocal:
 		fmt.Println("   mode: development (both local)")
 		composeFile = filepath.Join(projectConfig.Path, "docker", "docker-compose.dev.yml")
-	} else if uiLocal {
+	case uiLocal:
 		fmt.Println("   mode: ui development (ui local, core from image)")
 		composeFile = filepath.Join(projectConfig.Path, "docker", "docker-compose.hybrid-ui.yml")
-	} else {
+	default:
 		fmt.Println("   mode: core development (core local, ui from image)")
 		composeFile = filepath.Join(projectConfig.Path, "docker", "docker-compose.hybrid-core.yml")
 	}
@@ -72,7 +73,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 
 	dockerCompose := getDockerComposeCommand()
-	allArgs := append(dockerCompose, cmdArgs...)
+	allArgs := make([]string, 0, len(dockerCompose)+len(cmdArgs))
+	allArgs = append(allArgs, dockerCompose...)
+	allArgs = append(allArgs, cmdArgs...)
 	composeCmd := exec.Command(allArgs[0], allArgs[1:]...)
 	composeCmd.Stdout = os.Stdout
 	composeCmd.Stderr = os.Stderr
@@ -100,7 +103,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 
 		// provide instructions based on what was initialized
-		if uiLocal && coreLocal {
+		switch {
+		case uiLocal && coreLocal:
 			fmt.Println("📝 next steps for development:")
 			fmt.Printf("   1. start core: cd %s && air\n", projectConfig.CorePath)
 			fmt.Printf("   2. start ui: cd %s && npm run dev\n", projectConfig.UIPath)
@@ -108,14 +112,14 @@ func runStart(cmd *cobra.Command, args []string) error {
 			fmt.Println("   core will run on http://localhost:3000")
 			fmt.Println("   ui will run on http://localhost:3001")
 			fmt.Println("   postgresql is at localhost:5432")
-		} else if uiLocal {
+		case uiLocal:
 			fmt.Println("📝 next steps for ui development:")
 			fmt.Printf("   start ui: cd %s && npm run dev\n", projectConfig.UIPath)
 			fmt.Println()
 			fmt.Println("   ui will run on http://localhost:3001")
 			fmt.Println("   core api is at http://localhost:3000 (docker)")
 			fmt.Println("   postgresql is at localhost:5432 (docker)")
-		} else if coreLocal {
+		case coreLocal:
 			fmt.Println("📝 backend development mode:")
 			fmt.Println("   ✅ core is running in docker with your code mounted")
 			fmt.Println("   ✅ hot reload enabled - just edit your files")
@@ -125,7 +129,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 			fmt.Println("   postgresql: localhost:5432 (docker)")
 			fmt.Println()
 			fmt.Println("   note: no go installation required!")
-		} else {
+		default:
 			fmt.Println("📊 all services running in docker:")
 			fmt.Println("   ui: http://localhost:3001")
 			fmt.Println("   api: http://localhost:3000")
@@ -157,7 +161,7 @@ func waitForPostgres() error {
 			}
 		}
 
-		exec.Command("sleep", "1").Run()
+		_ = exec.Command("sleep", "1").Run()
 	}
 
 	return fmt.Errorf("postgres did not become ready in 30 seconds")
