@@ -97,7 +97,9 @@ func SaveConfig(config *OrchConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to acquire config lock: %w", err)
 	}
-	defer fileLock.Unlock()
+	defer func() {
+		_ = fileLock.Unlock()
+	}()
 
 	// Write atomically
 	const configFileMode = 0600
@@ -147,7 +149,9 @@ func setProjectConfig(projectPath string, uiPath, corePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to acquire config lock: %w", err)
 	}
-	defer fileLock.Unlock()
+	defer func() {
+		_ = fileLock.Unlock()
+	}()
 
 	// Load current config
 	config, err := LoadConfig()
@@ -210,7 +214,9 @@ func removeProjectConfig(projectPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to acquire config lock: %w", err)
 	}
-	defer fileLock.Unlock()
+	defer func() {
+		_ = fileLock.Unlock()
+	}()
 
 	// Load current config
 	config, err := LoadConfig()

@@ -38,10 +38,14 @@ func TestConfigManagement(t *testing.T) {
 
 	t.Run("SaveProjectConfig", func(t *testing.T) {
 		tempDir := t.TempDir()
-		configPath := filepath.Join(tempDir, "orchcli-config.json")
+
+		// Set environment to use temp config
+		oldExecutable := os.Args[0]
+		os.Args[0] = filepath.Join(tempDir, "orchcli")
+		defer func() { os.Args[0] = oldExecutable }()
 
 		// Create a test config
-		config := cmd.OrchConfig{
+		config := &cmd.OrchConfig{
 			CurrentProject: "/test/project",
 			Projects: map[string]*cmd.ProjectConfig{
 				"/test/project": {
@@ -53,30 +57,29 @@ func TestConfigManagement(t *testing.T) {
 			},
 		}
 
-		// Marshal and save
-		data, err := json.MarshalIndent(config, "", "  ")
-		require.NoError(t, err)
-		err = os.WriteFile(configPath, data, 0644)
+		// Save the config using the function under test
+		err := cmd.SaveConfig(config)
 		require.NoError(t, err)
 
-		// Verify the saved content
-		savedData, err := os.ReadFile(configPath)
+		// Load the config back using the function under test
+		loadedConfig, err := cmd.LoadConfig()
 		require.NoError(t, err)
 
-		var savedConfig cmd.OrchConfig
-		err = json.Unmarshal(savedData, &savedConfig)
-		require.NoError(t, err)
-
-		assert.Equal(t, config.CurrentProject, savedConfig.CurrentProject)
-		assert.Equal(t, len(config.Projects), len(savedConfig.Projects))
-		assert.Equal(t, config.Projects["/test/project"].Mode, savedConfig.Projects["/test/project"].Mode)
+		// Verify the loaded content
+		assert.Equal(t, config.CurrentProject, loadedConfig.CurrentProject)
+		assert.Equal(t, len(config.Projects), len(loadedConfig.Projects))
+		assert.Equal(t, config.Projects["/test/project"].Mode, loadedConfig.Projects["/test/project"].Mode)
 	})
 
 	t.Run("MultipleProjects", func(t *testing.T) {
 		tempDir := t.TempDir()
-		configPath := filepath.Join(tempDir, "orchcli-config.json")
 
-		config := cmd.OrchConfig{
+		// Set environment to use temp config
+		oldExecutable := os.Args[0]
+		os.Args[0] = filepath.Join(tempDir, "orchcli")
+		defer func() { os.Args[0] = oldExecutable }()
+
+		config := &cmd.OrchConfig{
 			CurrentProject: "/project2",
 			Projects: map[string]*cmd.ProjectConfig{
 				"/project1": {
@@ -97,24 +100,18 @@ func TestConfigManagement(t *testing.T) {
 			},
 		}
 
-		data, err := json.MarshalIndent(config, "", "  ")
+		// Save and load using functions under test
+		err := cmd.SaveConfig(config)
 		require.NoError(t, err)
-		err = os.WriteFile(configPath, data, 0644)
-		require.NoError(t, err)
-
-		// Load and verify
-		savedData, err := os.ReadFile(configPath)
+		loadedConfig, err := cmd.LoadConfig()
 		require.NoError(t, err)
 
-		var savedConfig cmd.OrchConfig
-		err = json.Unmarshal(savedData, &savedConfig)
-		require.NoError(t, err)
-
-		assert.Equal(t, 3, len(savedConfig.Projects))
-		assert.Equal(t, "/project2", savedConfig.CurrentProject)
-		assert.Equal(t, "production", savedConfig.Projects["/project1"].Mode)
-		assert.Equal(t, "development", savedConfig.Projects["/project2"].Mode)
-		assert.Equal(t, "ui-dev", savedConfig.Projects["/project3"].Mode)
+		// Verify
+		assert.Equal(t, 3, len(loadedConfig.Projects))
+		assert.Equal(t, "/project2", loadedConfig.CurrentProject)
+		assert.Equal(t, "production", loadedConfig.Projects["/project1"].Mode)
+		assert.Equal(t, "development", loadedConfig.Projects["/project2"].Mode)
+		assert.Equal(t, "ui-dev", loadedConfig.Projects["/project3"].Mode)
 	})
 
 	t.Run("ConfigModes", func(t *testing.T) {

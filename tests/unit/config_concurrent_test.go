@@ -62,7 +62,7 @@ func TestConcurrentConfigAccess(t *testing.T) {
 
 	t.Run("ConcurrentReadWrite", func(t *testing.T) {
 		t.Skip("Skipping test - reads don't use locks by design for performance")
-		
+
 		tempDir := t.TempDir()
 
 		// Override config path for testing
