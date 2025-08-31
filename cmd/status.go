@@ -78,7 +78,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Println("   ❌ mongodb is not healthy or not running")
 	} else {
 		output := strings.TrimSpace(string(dbOutput))
-		if strings.Contains(output, "ok") {
+		if strings.Contains(output, "{ ok: 1 }") {
 			fmt.Println("   ✅ mongodb is healthy and accepting connections")
 		} else {
 			fmt.Println("   ⚠️  mongodb status:", output)

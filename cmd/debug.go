@@ -75,7 +75,8 @@ func runDebug(cmd *cobra.Command, args []string) error {
 				if strings.Contains(output, "succeeded") || strings.Contains(output, "open") {
 					fmt.Println("   ✅ network connectivity to mongodb:27017 is working")
 				} else if strings.Contains(output, "not available") {
-					telnetCmd := exec.Command("docker", "exec", container, "sh", "-c", "timeout 2 telnet mongodb 27017 2>&1 || echo 'connection test failed'")
+					telnetArgs := "timeout 2 telnet mongodb 27017 2>&1 || echo 'connection test failed'"
+					telnetCmd := exec.Command("docker", "exec", container, "sh", "-c", telnetArgs)
 					telnetOutput, _ := telnetCmd.Output()
 					if strings.Contains(string(telnetOutput), "Connected") {
 						fmt.Println("   ✅ network connectivity to mongodb:27017 is working")
@@ -109,7 +110,7 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		if _, err := testCmd.Output(); err == nil {
 			fmt.Printf("   ✅ %s is ready\n", container)
 
-			connTestCmd := exec.Command("docker", "exec", container, "mongosh", "-u", "kubeorchestra", "-p", "kubeorchestra", "--authenticationDatabase", "admin", "--eval", "db.getName()")
+			connTestCmd := exec.Command("docker", "exec", container, "mongosh", "kubeorchestra", "--eval", "db.getName()")
 			if _, err := connTestCmd.Output(); err == nil {
 				fmt.Println("   ✅ database connection test successful")
 			}
@@ -124,8 +125,8 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	fmt.Println("   mongodb port: 27017")
 	fmt.Println()
 	fmt.Println("💡 connection strings:")
-	fmt.Println("   from containers: mongodb://kubeorchestra:kubeorchestra@mongodb:27017/kubeorchestra?authSource=admin")
-	fmt.Println("   from host:       mongodb://kubeorchestra:kubeorchestra@localhost:27017/kubeorchestra?authSource=admin")
+	fmt.Println("   from containers: mongodb://mongodb:27017/kubeorchestra")
+	fmt.Println("   from host:       mongodb://localhost:27017/kubeorchestra")
 
 	return nil
 }

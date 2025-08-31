@@ -10,14 +10,12 @@ networks:
 
 services:
   mongodb:
-    image: mongo:7.0
+    image: mongo:8.0
     container_name: kubeorchestra-mongodb-hybrid
     restart: unless-stopped
     networks:
       - kubeorchestra-net
     environment:
-      MONGO_INITDB_ROOT_USERNAME: kubeorchestra
-      MONGO_INITDB_ROOT_PASSWORD: kubeorchestra
       MONGO_INITDB_DATABASE: kubeorchestra
     ports:
       - "27017:27017"
@@ -46,7 +44,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      MONGO_URI: mongodb://kubeorchestra:kubeorchestra@mongodb:27017/kubeorchestra?authSource=admin
+      MONGO_URI: mongodb://mongodb:27017/kubeorchestra
       MONGO_DB_NAME: kubeorchestra
     depends_on:
       mongodb:

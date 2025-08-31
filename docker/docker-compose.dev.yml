@@ -5,12 +5,10 @@ version: '3.8'
 
 services:
   mongodb:
-    image: mongo:7.0
+    image: mongo:8.0
     container_name: kubeorchestra-mongodb-dev
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: kubeorchestra
-      MONGO_INITDB_ROOT_PASSWORD: kubeorchestra
       MONGO_INITDB_DATABASE: kubeorchestra
     ports:
       - "27017:27017"
