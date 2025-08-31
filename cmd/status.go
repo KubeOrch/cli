@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -25,12 +26,18 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	uiLocal := dirExists("./ui")
-	coreLocal := dirExists("./core")
+	projectConfig, err := getCurrentProjectConfig()
+	if err != nil {
+		return fmt.Errorf("no project initialized in current directory. Run 'orchcli init' first")
+	}
+
+	uiLocal := projectConfig.UIPath != "" && dirExists(projectConfig.UIPath)
+	coreLocal := projectConfig.CorePath != "" && dirExists(projectConfig.CorePath)
 
 	composeFile := getComposeFile(uiLocal, coreLocal)
+	composeFile = filepath.Join(projectConfig.Path, composeFile)
 
-	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
+	if _, statErr := os.Stat(composeFile); os.IsNotExist(statErr) {
 		fmt.Println("⚠️  no services are running")
 		return nil
 	}
@@ -39,8 +46,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	dockerCompose := getDockerComposeCommand()
-	psArgs := append(dockerCompose, "-f", composeFile, "ps")
+	const additionalArgs = 3 // -f, composeFile, ps
+	psArgs := make([]string, 0, len(dockerCompose)+additionalArgs)
+	psArgs = append(psArgs, dockerCompose...)
+	psArgs = append(psArgs, "-f", composeFile, "ps")
 	psCmd := exec.Command(psArgs[0], psArgs[1:]...)
+	psCmd.Dir = projectConfig.Path
 	psOutput, err := psCmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to check service status: %w", err)

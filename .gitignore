@@ -55,3 +55,4 @@ Thumbs.db
 *.tmp
 *.bak
 *.log
+orchcli-config.json
