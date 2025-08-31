@@ -1,24 +1,24 @@
 version: '3.8'
 
 # Development mode - both UI and Core run on host
-# Only PostgreSQL runs in Docker
+# Only MongoDB runs in Docker
 
 services:
-  postgres:
-    image: postgres:14
-    container_name: kubeorchestra-postgres-dev
+  mongodb:
+    image: mongo:7.0
+    container_name: kubeorchestra-mongodb-dev
     restart: unless-stopped
     environment:
-      POSTGRES_DB: kubeorchestra
-      POSTGRES_USER: kubeorchestra
-      POSTGRES_PASSWORD: kubeorchestra
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+      MONGO_INITDB_ROOT_USERNAME: kubeorchestra
+      MONGO_INITDB_ROOT_PASSWORD: kubeorchestra
+      MONGO_INITDB_DATABASE: kubeorchestra
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kubeorchestra -d kubeorchestra"]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,8 +26,10 @@ services:
 
 # UI runs on host: cd ui && npm install && npm run dev (port 3001)
 # Core runs on host: cd core && air (port 3000)
-# Both connect to PostgreSQL at localhost:5432
+# Both connect to MongoDB at localhost:27017
 
 volumes:
-  postgres_data:
-    name: kubeorchestra_postgres_data_dev
+  mongodb_data:
+    name: kubeorchestra_mongodb_data_dev
+  mongodb_config:
+    name: kubeorchestra_mongodb_config_dev

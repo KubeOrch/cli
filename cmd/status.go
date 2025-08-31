@@ -61,11 +61,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println(string(psOutput))
 
 	fmt.Println("💾 database status:")
-	dbCheckCmd := exec.Command("docker", "exec", "kubeorchestra-postgres", "pg_isready", "-U", "kubeorchestra")
+	dbCheckCmd := exec.Command("docker", "exec", "kubeorchestra-mongodb", "mongosh", "--eval", "db.adminCommand('ping')")
 	dbOutput, dbErr := dbCheckCmd.Output()
 	if dbErr != nil {
-		for _, name := range []string{"kubeorchestra-postgres-dev", "kubeorchestra-postgres-hybrid"} {
-			altCmd := exec.Command("docker", "exec", name, "pg_isready", "-U", "kubeorchestra")
+		for _, name := range []string{"kubeorchestra-mongodb-dev", "kubeorchestra-mongodb-hybrid"} {
+			altCmd := exec.Command("docker", "exec", name, "mongosh", "--eval", "db.adminCommand('ping')")
 			if output, err := altCmd.Output(); err == nil {
 				dbOutput = output
 				dbErr = nil
@@ -75,21 +75,21 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	if dbErr != nil {
-		fmt.Println("   ❌ postgres is not healthy or not running")
+		fmt.Println("   ❌ mongodb is not healthy or not running")
 	} else {
 		output := strings.TrimSpace(string(dbOutput))
-		if strings.Contains(output, "accepting connections") {
-			fmt.Println("   ✅ postgres is healthy and accepting connections")
+		if strings.Contains(output, "ok") {
+			fmt.Println("   ✅ mongodb is healthy and accepting connections")
 		} else {
-			fmt.Println("   ⚠️  postgres status:", output)
+			fmt.Println("   ⚠️  mongodb status:", output)
 		}
 	}
 
 	fmt.Println()
 	fmt.Println("🌐 service endpoints:")
-	fmt.Println("   ui:       http://localhost:3001")
-	fmt.Println("   api:      http://localhost:3000")
-	fmt.Println("   postgres: localhost:5432")
+	fmt.Println("   ui:      http://localhost:3001")
+	fmt.Println("   api:     http://localhost:3000")
+	fmt.Println("   mongodb: localhost:27017")
 
 	fmt.Println()
 	fmt.Println("💡 tips:")

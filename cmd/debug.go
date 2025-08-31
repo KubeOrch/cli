@@ -64,23 +64,23 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		if output, err := checkCmd.Output(); err == nil && len(output) > 0 {
 			coreFound = true
 
-			fmt.Printf("   testing from %s to postgres...\n", container)
+			fmt.Printf("   testing from %s to mongodb...\n", container)
 
-			pingCmd := exec.Command("docker", "exec", container, "sh", "-c", "nc -zv postgres 5432 2>&1 || echo 'nc not available'")
+			pingCmd := exec.Command("docker", "exec", container, "sh", "-c", "nc -zv mongodb 27017 2>&1 || echo 'nc not available'")
 			pingOutput, pingErr := pingCmd.Output()
 			if pingErr != nil {
 				fmt.Printf("   ⚠️  could not test connectivity: %v\n", pingErr)
 			} else {
 				output := strings.TrimSpace(string(pingOutput))
 				if strings.Contains(output, "succeeded") || strings.Contains(output, "open") {
-					fmt.Println("   ✅ network connectivity to postgres:5432 is working")
+					fmt.Println("   ✅ network connectivity to mongodb:27017 is working")
 				} else if strings.Contains(output, "not available") {
-					telnetCmd := exec.Command("docker", "exec", container, "sh", "-c", "timeout 2 telnet postgres 5432 2>&1 || echo 'connection test failed'")
+					telnetCmd := exec.Command("docker", "exec", container, "sh", "-c", "timeout 2 telnet mongodb 27017 2>&1 || echo 'connection test failed'")
 					telnetOutput, _ := telnetCmd.Output()
 					if strings.Contains(string(telnetOutput), "Connected") {
-						fmt.Println("   ✅ network connectivity to postgres:5432 is working")
+						fmt.Println("   ✅ network connectivity to mongodb:27017 is working")
 					} else {
-						fmt.Println("   ❌ cannot connect to postgres:5432")
+						fmt.Println("   ❌ cannot connect to mongodb:27017")
 					}
 				} else {
 					fmt.Printf("   connectivity test result: %s\n", output)
@@ -96,20 +96,20 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("🔌 testing direct postgres access:")
+	fmt.Println("🔌 testing direct mongodb access:")
 
-	postgresContainers := []string{
-		"kubeorchestra-postgres",
-		"kubeorchestra-postgres-dev",
-		"kubeorchestra-postgres-hybrid",
+	mongodbContainers := []string{
+		"kubeorchestra-mongodb",
+		"kubeorchestra-mongodb-dev",
+		"kubeorchestra-mongodb-hybrid",
 	}
 
-	for _, container := range postgresContainers {
-		testCmd := exec.Command("docker", "exec", container, "pg_isready", "-U", "kubeorchestra", "-d", "kubeorchestra")
-		if output, err := testCmd.Output(); err == nil {
-			fmt.Printf("   ✅ %s is ready: %s", container, strings.TrimSpace(string(output)))
+	for _, container := range mongodbContainers {
+		testCmd := exec.Command("docker", "exec", container, "mongosh", "--eval", "db.adminCommand('ping')")
+		if _, err := testCmd.Output(); err == nil {
+			fmt.Printf("   ✅ %s is ready\n", container)
 
-			connTestCmd := exec.Command("docker", "exec", container, "psql", "-U", "kubeorchestra", "-d", "kubeorchestra", "-c", "SELECT 1")
+			connTestCmd := exec.Command("docker", "exec", container, "mongosh", "-u", "kubeorchestra", "-p", "kubeorchestra", "--authenticationDatabase", "admin", "--eval", "db.getName()")
 			if _, err := connTestCmd.Output(); err == nil {
 				fmt.Println("   ✅ database connection test successful")
 			}
@@ -120,12 +120,12 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("📋 network configuration:")
 	fmt.Println("   all services are on the same docker network")
-	fmt.Println("   postgres is accessible via hostname: postgres")
-	fmt.Println("   postgres port: 5432")
+	fmt.Println("   mongodb is accessible via hostname: mongodb")
+	fmt.Println("   mongodb port: 27017")
 	fmt.Println()
 	fmt.Println("💡 connection strings:")
-	fmt.Println("   from containers: postgres://kubeorchestra:kubeorchestra@postgres:5432/kubeorchestra")
-	fmt.Println("   from host:       postgres://kubeorchestra:kubeorchestra@localhost:5432/kubeorchestra")
+	fmt.Println("   from containers: mongodb://kubeorchestra:kubeorchestra@mongodb:27017/kubeorchestra?authSource=admin")
+	fmt.Println("   from host:       mongodb://kubeorchestra:kubeorchestra@localhost:27017/kubeorchestra?authSource=admin")
 
 	return nil
 }

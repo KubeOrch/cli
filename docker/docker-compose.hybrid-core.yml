@@ -9,23 +9,23 @@ networks:
     name: kubeorchestra-network-hybrid
 
 services:
-  postgres:
-    image: postgres:14
-    container_name: kubeorchestra-postgres-hybrid
+  mongodb:
+    image: mongo:7.0
+    container_name: kubeorchestra-mongodb-hybrid
     restart: unless-stopped
     networks:
       - kubeorchestra-net
     environment:
-      POSTGRES_DB: kubeorchestra
-      POSTGRES_USER: kubeorchestra
-      POSTGRES_PASSWORD: kubeorchestra
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+      MONGO_INITDB_ROOT_USERNAME: kubeorchestra
+      MONGO_INITDB_ROOT_PASSWORD: kubeorchestra
+      MONGO_INITDB_DATABASE: kubeorchestra
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kubeorchestra -d kubeorchestra"]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,13 +46,10 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DB_HOST: postgres
-      DB_NAME: kubeorchestra
-      DB_USER: kubeorchestra
-      DB_PASSWORD: kubeorchestra
-      DB_PORT: 5432
+      MONGO_URI: mongodb://kubeorchestra:kubeorchestra@mongodb:27017/kubeorchestra?authSource=admin
+      MONGO_DB_NAME: kubeorchestra
     depends_on:
-      postgres:
+      mongodb:
         condition: service_healthy
     command: air
 
@@ -73,7 +70,9 @@ services:
       - core
 
 volumes:
-  postgres_data:
-    name: kubeorchestra_postgres_data_hybrid
+  mongodb_data:
+    name: kubeorchestra_mongodb_data_hybrid
+  mongodb_config:
+    name: kubeorchestra_mongodb_config_hybrid
   go-modules:
     name: kubeorchestra_go_modules
