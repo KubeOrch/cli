@@ -171,9 +171,10 @@ func checkRepositoryStatus(repoPath, repoName string) error {
 }
 
 func isForkRepository(repoPath string) (bool, error) {
-	cmd := exec.Command("git", "remote", "get-url", "upstream")
-	cmd.Dir = repoPath
-	if err := cmd.Run(); err != nil {
+	upstreamCmd := exec.Command("git", "remote", "get-url", "upstream")
+	upstreamCmd.Dir = repoPath
+	upstreamOutput, err := upstreamCmd.Output()
+	if err != nil {
 		return false, nil
 	}
 
@@ -184,15 +185,8 @@ func isForkRepository(repoPath string) (bool, error) {
 		return false, fmt.Errorf("failed to get origin remote: %w", err)
 	}
 
-	upstreamCmd := exec.Command("git", "remote", "get-url", "upstream")
-	upstreamCmd.Dir = repoPath
-	upstreamOutput, err := upstreamCmd.Output()
-	if err != nil {
-		return false, fmt.Errorf("failed to get upstream remote: %w", err)
-	}
-
-	originURL := string(originOutput)
-	upstreamURL := string(upstreamOutput)
+	originURL := strings.TrimSpace(string(originOutput))
+	upstreamURL := strings.TrimSpace(string(upstreamOutput))
 
 	return originURL != upstreamURL, nil
 }
@@ -256,7 +250,12 @@ func pullForkRepository(repoPath, repoName string) error {
 		return fmt.Errorf("failed to fetch upstream for %s repository: %w", repoName, err)
 	}
 
-	mergeCmd := exec.Command("git", "merge", "upstream/main")
+	defaultBranch, err := getDefaultBranch(repoPath, "upstream")
+	if err != nil {
+		defaultBranch = "main"
+	}
+
+	mergeCmd := exec.Command("git", "merge", fmt.Sprintf("upstream/%s", defaultBranch))
 	mergeCmd.Dir = repoPath
 	mergeCmd.Stdout = os.Stdout
 	mergeCmd.Stderr = os.Stderr
@@ -284,15 +283,18 @@ func handleMergeConflict(repoPath, repoName string, mergeErr error) error {
 }
 
 func forceResetRepository(repoPath, repoName string, isFork bool) error {
-	currentBranch, err := getCurrentBranch(repoPath)
-	if err != nil {
-		return fmt.Errorf("failed to get current branch for %s repository: %w", repoName, err)
-	}
-
 	var resetCmd *exec.Cmd
 	if isFork {
-		resetCmd = exec.Command("git", "reset", "--hard", "upstream/main")
+		defaultBranch, err := getDefaultBranch(repoPath, "upstream")
+		if err != nil {
+			defaultBranch = "main"
+		}
+		resetCmd = exec.Command("git", "reset", "--hard", fmt.Sprintf("upstream/%s", defaultBranch))
 	} else {
+		currentBranch, err := getCurrentBranch(repoPath)
+		if err != nil {
+			return fmt.Errorf("failed to get current branch for %s repository: %w", repoName, err)
+		}
 		resetCmd = exec.Command("git", "reset", "--hard", fmt.Sprintf("origin/%s", currentBranch))
 	}
 
@@ -314,7 +316,28 @@ func getCurrentBranch(repoPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(output), nil
+	return strings.TrimSpace(string(output)), nil
+}
+
+func getDefaultBranch(repoPath, remote string) (string, error) {
+	cmd := exec.Command("git", "remote", "show", remote)
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+	if err != nil {
+		return "main", nil
+	}
+
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "HEAD branch:") {
+			parts := strings.Fields(line)
+			if len(parts) >= 3 {
+				return strings.TrimSpace(parts[2]), nil
+			}
+		}
+	}
+
+	return "main", nil
 }
 
 func showRepositorySummary(repoPath, repoName string) error {
