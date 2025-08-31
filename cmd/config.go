@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/gofrs/flock"
 )
 
 type ProjectConfig struct {
 	Path     string `json:"path"`
 	UIPath   string `json:"ui_path,omitempty"`
 	CorePath string `json:"core_path,omitempty"`
-	Mode     string `json:"mode"` // "production", "development", "ui-dev", "core-dev"
+	Mode     string `json:"mode"`
 }
 
 type OrchConfig struct {
@@ -73,17 +75,31 @@ func SaveConfig(config *OrchConfig) error {
 		return err
 	}
 
+	// Create config directory if it doesn't exist
 	const dirMode = 0750
 	configDir := filepath.Dir(configPath)
 	if mkErr := os.MkdirAll(configDir, dirMode); mkErr != nil {
 		return fmt.Errorf("failed to create config directory: %w", mkErr)
 	}
 
+	// Marshal config
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
+	// Use file locking for concurrent access
+	lockPath := configPath + ".lock"
+	fileLock := flock.New(lockPath)
+
+	// Try to acquire lock
+	err = fileLock.Lock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire config lock: %w", err)
+	}
+	defer fileLock.Unlock()
+
+	// Write atomically
 	const configFileMode = 0600
 	if err := os.WriteFile(configPath, data, configFileMode); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
@@ -117,11 +133,29 @@ func getCurrentProjectConfig() (*ProjectConfig, error) {
 }
 
 func setProjectConfig(projectPath string, uiPath, corePath string) error {
+	configPath, err := GetConfigPath()
+	if err != nil {
+		return err
+	}
+
+	// Use file locking for concurrent access
+	lockPath := configPath + ".lock"
+	fileLock := flock.New(lockPath)
+
+	// Try to acquire lock
+	err = fileLock.Lock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire config lock: %w", err)
+	}
+	defer fileLock.Unlock()
+
+	// Load current config
 	config, err := LoadConfig()
 	if err != nil {
 		return err
 	}
 
+	// Determine mode
 	var mode string
 	switch {
 	case uiPath != "" && corePath != "":
@@ -134,6 +168,7 @@ func setProjectConfig(projectPath string, uiPath, corePath string) error {
 		mode = "production"
 	}
 
+	// Update config
 	config.Projects[projectPath] = &ProjectConfig{
 		Path:     projectPath,
 		UIPath:   uiPath,
@@ -142,23 +177,64 @@ func setProjectConfig(projectPath string, uiPath, corePath string) error {
 	}
 	config.CurrentProject = projectPath
 
-	return SaveConfig(config)
+	// Marshal and save
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	const configFileMode = 0600
+	if err := os.WriteFile(configPath, data, configFileMode); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
 }
 
 // removeProjectConfig removes a project from the configuration
 // Keeping for future use when we add a 'remove' or 'clean' command
+//
 //nolint:unused // kept for future 'orchcli remove' command implementation
 func removeProjectConfig(projectPath string) error {
+	configPath, err := GetConfigPath()
+	if err != nil {
+		return err
+	}
+
+	// Use file locking for concurrent access
+	lockPath := configPath + ".lock"
+	fileLock := flock.New(lockPath)
+
+	// Try to acquire lock
+	err = fileLock.Lock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire config lock: %w", err)
+	}
+	defer fileLock.Unlock()
+
+	// Load current config
 	config, err := LoadConfig()
 	if err != nil {
 		return err
 	}
 
+	// Remove project
 	delete(config.Projects, projectPath)
 
 	if config.CurrentProject == projectPath {
 		config.CurrentProject = ""
 	}
 
-	return SaveConfig(config)
+	// Marshal and save
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	const configFileMode = 0600
+	if err := os.WriteFile(configPath, data, configFileMode); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
 }
