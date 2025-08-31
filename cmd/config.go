@@ -73,9 +73,10 @@ func SaveConfig(config *OrchConfig) error {
 		return err
 	}
 
+	const dirMode = 0750
 	configDir := filepath.Dir(configPath)
-	if err := os.MkdirAll(configDir, 0750); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+	if mkErr := os.MkdirAll(configDir, dirMode); mkErr != nil {
+		return fmt.Errorf("failed to create config directory: %w", mkErr)
 	}
 
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -83,7 +84,8 @@ func SaveConfig(config *OrchConfig) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0600); err != nil {
+	const configFileMode = 0600
+	if err := os.WriteFile(configPath, data, configFileMode); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -143,8 +145,9 @@ func setProjectConfig(projectPath string, uiPath, corePath string) error {
 	return SaveConfig(config)
 }
 
-
-// removeProjectConfig removes a project from the configuration (unused but kept for future use)
+// removeProjectConfig removes a project from the configuration
+// Keeping for future use when we add a 'remove' or 'clean' command
+//nolint:unused // kept for future 'orchcli remove' command implementation
 func removeProjectConfig(projectPath string) error {
 	config, err := LoadConfig()
 	if err != nil {
@@ -159,4 +162,3 @@ func removeProjectConfig(projectPath string) error {
 
 	return SaveConfig(config)
 }
-

@@ -46,7 +46,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	dockerCompose := getDockerComposeCommand()
-	psArgs := make([]string, 0, len(dockerCompose)+3)
+	const additionalArgs = 3 // -f, composeFile, ps
+	psArgs := make([]string, 0, len(dockerCompose)+additionalArgs)
 	psArgs = append(psArgs, dockerCompose...)
 	psArgs = append(psArgs, "-f", composeFile, "ps")
 	psCmd := exec.Command(psArgs[0], psArgs[1:]...)

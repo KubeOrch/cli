@@ -155,7 +155,6 @@ func TestProjectPaths(t *testing.T) {
 			Path:     "/home/user/myproject",
 			UIPath:   "/home/user/myproject/ui",
 			CorePath: "/home/user/myproject/core",
-			Mode:     "development",
 		}
 
 		assert.True(t, filepath.IsAbs(config.Path))
@@ -166,10 +165,8 @@ func TestProjectPaths(t *testing.T) {
 	t.Run("PathRelationships", func(t *testing.T) {
 		basePath := "/home/user/project"
 		config := cmd.ProjectConfig{
-			Path:     basePath,
 			UIPath:   filepath.Join(basePath, "ui"),
 			CorePath: filepath.Join(basePath, "core"),
-			Mode:     "development",
 		}
 
 		// UI and Core should be subdirectories of Path
@@ -177,4 +174,3 @@ func TestProjectPaths(t *testing.T) {
 		assert.Equal(t, basePath, filepath.Dir(config.CorePath))
 	})
 }
-

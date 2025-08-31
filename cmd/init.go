@@ -81,9 +81,10 @@ func setupProduction() error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
+	const dirMode = 0750
 	dirs := []string{"docker", "scripts"}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0750); err != nil {
+		if err := os.MkdirAll(dir, dirMode); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
