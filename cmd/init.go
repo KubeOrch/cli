@@ -109,50 +109,99 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 		return err
 	}
 
+	// Prepare tasks for concurrent execution
+	var cloneTasks []Task
+
+	if cloneUI && cloneCore {
+		fmt.Println("📦 Cloning repositories concurrently...")
+	}
+
+	// UI cloning task
+	var uiRepoURL string
+	var uiIsFork bool
 	if cloneUI {
-		repoURL, isFork := determineRepoURL(forkUI, "KubeOrchestra/ui")
-		fmt.Printf("📦 Cloning UI repository from %s...\n", repoURL)
+		uiRepoURL, uiIsFork = determineRepoURL(forkUI, "KubeOrchestra/ui")
+		cloneTasks = append(cloneTasks, Task{
+			Action: func() error {
+				return cloneRepo(uiRepoURL, "./ui")
+			},
+			Progress: NewProgressBar(fmt.Sprintf("Cloning UI from %s", uiRepoURL)),
+			Name:     "Clone UI repository",
+		})
+	}
 
-		if err := cloneRepo(repoURL, "./ui"); err != nil {
-			return fmt.Errorf("failed to clone UI repository: %w", err)
-		}
+	// Core cloning task
+	var coreRepoURL string
+	var coreIsFork bool
+	if cloneCore {
+		coreRepoURL, coreIsFork = determineRepoURL(forkCore, "KubeOrchestra/core")
+		cloneTasks = append(cloneTasks, Task{
+			Action: func() error {
+				return cloneRepo(coreRepoURL, "./core")
+			},
+			Progress: NewProgressBar(fmt.Sprintf("Cloning Core from %s", coreRepoURL)),
+			Name:     "Clone Core repository",
+		})
+	}
 
-		if isFork {
-			fmt.Println("🔗 Setting up upstream for UI fork...")
-			if err := setupUpstream("./ui", "https://github.com/KubeOrchestra/ui"); err != nil {
-				return fmt.Errorf("failed to setup upstream for UI: %w", err)
-			}
-		}
-
-		if !skipDeps {
-			fmt.Println("📥 installing ui dependencies...")
-			if err := installUIDependencies(); err != nil {
-				fmt.Printf("⚠️  warning: failed to install ui dependencies: %v\n", err)
-				fmt.Println("   you can install them manually with: cd ui && npm install")
-			}
+	// Execute cloning tasks concurrently
+	if len(cloneTasks) > 0 {
+		results := RunConcurrent(cloneTasks)
+		if err := AggregateErrors(results); err != nil {
+			return err
 		}
 	}
 
-	if cloneCore {
-		repoURL, isFork := determineRepoURL(forkCore, "KubeOrchestra/core")
-		fmt.Printf("📦 Cloning Core repository from %s...\n", repoURL)
+	// Setup upstreams for forks (sequential as they're quick)
+	if cloneUI && uiIsFork {
+		fmt.Println("🔗 Setting up upstream for UI fork...")
+		if err := setupUpstream("./ui", "https://github.com/KubeOrchestra/ui"); err != nil {
+			return fmt.Errorf("failed to setup upstream for UI: %w", err)
+		}
+	}
 
-		if err := cloneRepo(repoURL, "./core"); err != nil {
-			return fmt.Errorf("failed to clone Core repository: %w", err)
+	if cloneCore && coreIsFork {
+		fmt.Println("🔗 Setting up upstream for Core fork...")
+		if err := setupUpstream("./core", "https://github.com/KubeOrchestra/core"); err != nil {
+			return fmt.Errorf("failed to setup upstream for Core: %w", err)
+		}
+	}
+
+	// Install dependencies concurrently
+	if !skipDeps {
+		var depTasks []Task
+
+		if cloneUI {
+			depTasks = append(depTasks, Task{
+				Action:   installUIDependencies,
+				Progress: NewProgressBar("Installing UI dependencies (npm install)"),
+				Name:     "Install UI dependencies",
+			})
 		}
 
-		if isFork {
-			fmt.Println("🔗 Setting up upstream for Core fork...")
-			if err := setupUpstream("./core", "https://github.com/KubeOrchestra/core"); err != nil {
-				return fmt.Errorf("failed to setup upstream for Core: %w", err)
-			}
+		if cloneCore {
+			depTasks = append(depTasks, Task{
+				Action:   installCoreDependencies,
+				Progress: NewProgressBar("Downloading Core dependencies (go mod download)"),
+				Name:     "Download Core dependencies",
+			})
 		}
 
-		if !skipDeps {
-			fmt.Println("📥 downloading core dependencies...")
-			if err := installCoreDependencies(); err != nil {
-				fmt.Printf("⚠️  warning: failed to download core dependencies: %v\n", err)
-				fmt.Println("   you can download them manually with: cd core && go mod download")
+		if len(depTasks) > 0 {
+			fmt.Println("\n📥 Installing dependencies concurrently...")
+			results := RunConcurrent(depTasks)
+
+			// Show warnings for failed dependencies but don't fail
+			for _, result := range results {
+				if result.Error != nil {
+					if result.Name == "Install UI dependencies" {
+						fmt.Printf("⚠️  warning: failed to install ui dependencies: %v\n", result.Error)
+						fmt.Println("   you can install them manually with: cd ui && npm install")
+					} else if result.Name == "Download Core dependencies" {
+						fmt.Printf("⚠️  warning: failed to download core dependencies: %v\n", result.Error)
+						fmt.Println("   you can download them manually with: cd core && go mod download")
+					}
+				}
 			}
 		}
 	}
