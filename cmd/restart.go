@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -24,12 +25,18 @@ func runRestart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	uiLocal := dirExists("./ui")
-	coreLocal := dirExists("./core")
+	projectConfig, err := getCurrentProjectConfig()
+	if err != nil {
+		return fmt.Errorf("no project initialized in current directory. Run 'orchcli init' first")
+	}
+
+	uiLocal := projectConfig.UIPath != "" && dirExists(projectConfig.UIPath)
+	coreLocal := projectConfig.CorePath != "" && dirExists(projectConfig.CorePath)
 
 	fmt.Println("🔄 restarting kubeorchestra services...")
 
 	composeFile := getComposeFile(uiLocal, coreLocal)
+	composeFile = filepath.Join(projectConfig.Path, composeFile)
 
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
 		return fmt.Errorf("no services are running. start services first with: orchcli start")
@@ -50,6 +57,7 @@ func runRestart(cmd *cobra.Command, args []string) error {
 	composeCmd := exec.Command(dockerCompose[0], dockerCompose[1:]...)
 	composeCmd.Stdout = os.Stdout
 	composeCmd.Stderr = os.Stderr
+	composeCmd.Dir = projectConfig.Path
 
 	if err := composeCmd.Run(); err != nil {
 		return fmt.Errorf("failed to restart services: %w", err)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -75,6 +76,11 @@ func setupProduction() error {
 		return err
 	}
 
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
 	dirs := []string{"docker", "scripts"}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -82,7 +88,13 @@ func setupProduction() error {
 		}
 	}
 
+	// Save project configuration
+	if err := setProjectConfig(cwd, "", ""); err != nil {
+		fmt.Printf("⚠️  warning: failed to save project configuration: %v\n", err)
+	}
+
 	fmt.Println("\n✅ Production environment ready!")
+	fmt.Printf("📁 Project initialized at: %s\n", cwd)
 	fmt.Println("\n📝 Image tags that will be used:")
 	fmt.Println("   - ghcr.io/kubeorchestra/ui:latest")
 	fmt.Println("   - ghcr.io/kubeorchestra/core:latest")
@@ -93,6 +105,11 @@ func setupProduction() error {
 
 func setupDevelopment(cloneUI, cloneCore bool) error {
 	fmt.Println("🔧 Setting up OrchCLI for development")
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
 
 	if cloneUI && forkUI == "" {
 		forkUI = "KubeOrchestra/ui"
@@ -119,11 +136,13 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	// UI cloning task
 	var uiRepoURL string
 	var uiIsFork bool
+	var uiPath string
 	if cloneUI {
 		uiRepoURL, uiIsFork = determineRepoURL(forkUI, "KubeOrchestra/ui")
+		uiPath = filepath.Join(cwd, "ui")
 		cloneTasks = append(cloneTasks, Task{
 			Action: func() error {
-				return cloneRepo(uiRepoURL, "./ui")
+				return cloneRepo(uiRepoURL, uiPath)
 			},
 			Progress: NewProgressBar(fmt.Sprintf("Cloning UI from %s", uiRepoURL)),
 			Name:     "Clone UI repository",
@@ -133,11 +152,13 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	// Core cloning task
 	var coreRepoURL string
 	var coreIsFork bool
+	var corePath string
 	if cloneCore {
 		coreRepoURL, coreIsFork = determineRepoURL(forkCore, "KubeOrchestra/core")
+		corePath = filepath.Join(cwd, "core")
 		cloneTasks = append(cloneTasks, Task{
 			Action: func() error {
-				return cloneRepo(coreRepoURL, "./core")
+				return cloneRepo(coreRepoURL, corePath)
 			},
 			Progress: NewProgressBar(fmt.Sprintf("Cloning Core from %s", coreRepoURL)),
 			Name:     "Clone Core repository",
@@ -155,14 +176,14 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	// Setup upstreams for forks (sequential as they're quick)
 	if cloneUI && uiIsFork {
 		fmt.Println("🔗 Setting up upstream for UI fork...")
-		if err := setupUpstream("./ui", "https://github.com/KubeOrchestra/ui"); err != nil {
+		if err := setupUpstream(uiPath, "https://github.com/KubeOrchestra/ui"); err != nil {
 			return fmt.Errorf("failed to setup upstream for UI: %w", err)
 		}
 	}
 
 	if cloneCore && coreIsFork {
 		fmt.Println("🔗 Setting up upstream for Core fork...")
-		if err := setupUpstream("./core", "https://github.com/KubeOrchestra/core"); err != nil {
+		if err := setupUpstream(corePath, "https://github.com/KubeOrchestra/core"); err != nil {
 			return fmt.Errorf("failed to setup upstream for Core: %w", err)
 		}
 	}
@@ -173,7 +194,9 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 
 		if cloneUI {
 			depTasks = append(depTasks, Task{
-				Action:   installUIDependencies,
+				Action: func() error {
+					return installUIDependencies(uiPath)
+				},
 				Progress: NewProgressBar("Installing UI dependencies (npm install)"),
 				Name:     "Install UI dependencies",
 			})
@@ -181,7 +204,9 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 
 		if cloneCore {
 			depTasks = append(depTasks, Task{
-				Action:   installCoreDependencies,
+				Action: func() error {
+					return installCoreDependencies(corePath)
+				},
 				Progress: NewProgressBar("Downloading Core dependencies (go mod download)"),
 				Name:     "Download Core dependencies",
 			})
@@ -196,17 +221,23 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 				if result.Error != nil {
 					if result.Name == "Install UI dependencies" {
 						fmt.Printf("⚠️  warning: failed to install ui dependencies: %v\n", result.Error)
-						fmt.Println("   you can install them manually with: cd ui && npm install")
+						fmt.Printf("   you can install them manually with: cd %s && npm install\n", uiPath)
 					} else if result.Name == "Download Core dependencies" {
 						fmt.Printf("⚠️  warning: failed to download core dependencies: %v\n", result.Error)
-						fmt.Println("   you can download them manually with: cd core && go mod download")
+						fmt.Printf("   you can download them manually with: cd %s && go mod download\n", corePath)
 					}
 				}
 			}
 		}
 	}
 
+	// Save project configuration
+	if err := setProjectConfig(cwd, uiPath, corePath); err != nil {
+		fmt.Printf("⚠️  warning: failed to save project configuration: %v\n", err)
+	}
+
 	fmt.Println("\n✅ Development environment ready!")
+	fmt.Printf("📁 Project initialized at: %s\n", cwd)
 	fmt.Println("\n📝 Next steps:")
 
 	if cloneUI && cloneCore {
@@ -284,12 +315,18 @@ func checkPrerequisites() error {
 }
 
 func validateAndCheckDirs(checkUI, checkCore bool) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
 	if checkUI {
 		if err := validateRepoFormat(forkUI); err != nil {
 			return fmt.Errorf("invalid UI repository: %w", err)
 		}
-		if dirExists("./ui") {
-			return fmt.Errorf("UI directory already exists. Please remove it first or use 'orchcli update'")
+		uiPath := filepath.Join(cwd, "ui")
+		if dirExists(uiPath) {
+			return fmt.Errorf("UI directory already exists at %s. Please remove it first or use 'orchcli update'", uiPath)
 		}
 	}
 
@@ -297,8 +334,9 @@ func validateAndCheckDirs(checkUI, checkCore bool) error {
 		if err := validateRepoFormat(forkCore); err != nil {
 			return fmt.Errorf("invalid Core repository: %w", err)
 		}
-		if dirExists("./core") {
-			return fmt.Errorf("Core directory already exists. Please remove it first or use 'orchcli update'")
+		corePath := filepath.Join(cwd, "core")
+		if dirExists(corePath) {
+			return fmt.Errorf("Core directory already exists at %s. Please remove it first or use 'orchcli update'", corePath)
 		}
 	}
 
@@ -344,7 +382,7 @@ func setupUpstream(repoPath, upstreamURL string) error {
 	return fetchCmd.Run()
 }
 
-func installUIDependencies() error {
+func installUIDependencies(uiPath string) error {
 	if err := checkCommand("npm", "--version"); err != nil {
 		if autoInstall {
 			fmt.Println("⚠️  npm not found. installing node.js and npm...")
@@ -359,14 +397,14 @@ func installUIDependencies() error {
 
 	fmt.Println("   this may take a few minutes...")
 	cmd := exec.Command("npm", "install")
-	cmd.Dir = "./ui"
+	cmd.Dir = uiPath
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
 }
 
-func installCoreDependencies() error {
+func installCoreDependencies(corePath string) error {
 	if err := checkCommand("go", "version"); err != nil {
 		if autoInstall {
 			fmt.Println("⚠️  go not found. installing go...")
@@ -381,7 +419,7 @@ func installCoreDependencies() error {
 
 	fmt.Println("   downloading go modules...")
 	cmd := exec.Command("go", "mod", "download")
-	cmd.Dir = "./core"
+	cmd.Dir = corePath
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
