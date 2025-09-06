@@ -8,6 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	testDefaultUIRepo   = "KubeOrch/ui"
+	testDefaultCoreRepo = "KubeOrch/core"
+)
+
 // ExecuteCommandC executes a command and returns the output
 func ExecuteCommandC(root *cobra.Command, args ...string) (output string, err error) {
 	buf := new(bytes.Buffer)
@@ -54,8 +59,8 @@ func ResetCommands() {
 	initCmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency installation")
 	initCmd.Flags().BoolVar(&autoInstall, "auto-install", true, "Automatically install missing dependencies")
 
-	initCmd.Flags().Lookup("fork-ui").NoOptDefVal = "KubeOrch/ui"
-	initCmd.Flags().Lookup("fork-core").NoOptDefVal = "KubeOrch/core"
+	initCmd.Flags().Lookup("fork-ui").NoOptDefVal = testDefaultUIRepo
+	initCmd.Flags().Lookup("fork-core").NoOptDefVal = testDefaultCoreRepo
 
 	startCmd.Flags().BoolVarP(&detach, "detach", "d", false, "run services in background")
 	stopCmd.Flags().BoolVarP(&removeVolumes, "volumes", "v", false, "remove volumes when stopping")

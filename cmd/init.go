@@ -11,6 +11,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	defaultUIRepo   = "KubeOrch/ui"
+	defaultCoreRepo = "KubeOrch/core"
+)
+
 var (
 	forkUI      string
 	forkCore    string
@@ -50,8 +55,8 @@ func init() {
 	initCmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency installation")
 	initCmd.Flags().BoolVar(&autoInstall, "auto-install", true, "Automatically install missing dependencies (npm, go)")
 
-	initCmd.Flags().Lookup("fork-ui").NoOptDefVal = "KubeOrch/ui"
-	initCmd.Flags().Lookup("fork-core").NoOptDefVal = "KubeOrch/core"
+	initCmd.Flags().Lookup("fork-ui").NoOptDefVal = defaultUIRepo
+	initCmd.Flags().Lookup("fork-core").NoOptDefVal = defaultCoreRepo
 
 	rootCmd.AddCommand(initCmd)
 }
@@ -113,10 +118,10 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	}
 
 	if cloneUI && forkUI == "" {
-		forkUI = "KubeOrch/ui"
+		forkUI = defaultUIRepo
 	}
 	if cloneCore && forkCore == "" {
-		forkCore = "KubeOrch/core"
+		forkCore = defaultCoreRepo
 	}
 
 	if err := checkPrerequisites(); err != nil {
@@ -139,7 +144,7 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	var uiIsFork bool
 	var uiPath string
 	if cloneUI {
-		uiRepoURL, uiIsFork = determineRepoURL(forkUI, "KubeOrch/ui")
+		uiRepoURL, uiIsFork = determineRepoURL(forkUI, defaultUIRepo)
 		uiPath = filepath.Join(cwd, "ui")
 		cloneTasks = append(cloneTasks, Task{
 			Action: func() error {
@@ -155,7 +160,7 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	var coreIsFork bool
 	var corePath string
 	if cloneCore {
-		coreRepoURL, coreIsFork = determineRepoURL(forkCore, "KubeOrch/core")
+		coreRepoURL, coreIsFork = determineRepoURL(forkCore, defaultCoreRepo)
 		corePath = filepath.Join(cwd, "core")
 		cloneTasks = append(cloneTasks, Task{
 			Action: func() error {
@@ -177,14 +182,14 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	// Setup upstreams for forks (sequential as they're quick)
 	if cloneUI && uiIsFork {
 		fmt.Println("🔗 Setting up upstream for UI fork...")
-		if err := setupUpstream(uiPath, "https://github.com/KubeOrch/ui"); err != nil {
+		if err := setupUpstream(uiPath, "https://github.com/"+defaultUIRepo); err != nil {
 			return fmt.Errorf("failed to setup upstream for UI: %w", err)
 		}
 	}
 
 	if cloneCore && coreIsFork {
 		fmt.Println("🔗 Setting up upstream for Core fork...")
-		if err := setupUpstream(corePath, "https://github.com/KubeOrch/core"); err != nil {
+		if err := setupUpstream(corePath, "https://github.com/"+defaultCoreRepo); err != nil {
 			return fmt.Errorf("failed to setup upstream for Core: %w", err)
 		}
 	}
@@ -253,8 +258,8 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	fmt.Println("   2. Make your changes in the cloned repositories")
 	fmt.Println("   3. Changes will hot-reload automatically")
 
-	usingForks := (forkUI != "" && forkUI != "KubeOrch/ui") ||
-		(forkCore != "" && forkCore != "KubeOrch/core")
+	usingForks := (forkUI != "" && forkUI != defaultUIRepo) ||
+		(forkCore != "" && forkCore != defaultCoreRepo)
 
 	if usingForks {
 		fmt.Println("\n🍴 Fork workflow detected (External Contributor):")
@@ -281,7 +286,7 @@ func determineRepoURL(repoName, defaultRepo string) (string, bool) {
 }
 
 func validateRepoFormat(repo string) error {
-	if repo == "" || repo == "KubeOrch/ui" || repo == "KubeOrch/core" {
+	if repo == "" || repo == defaultUIRepo || repo == defaultCoreRepo {
 		return nil
 	}
 
