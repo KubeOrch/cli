@@ -56,7 +56,7 @@ jobs:
           # Build for all platforms with proper versioning
           echo "Building binaries for version $VERSION, commit $COMMIT"
           
-          LDFLAGS="-X github.com/kubeorchestra/cli/cmd.version=$VERSION -X github.com/kubeorchestra/cli/cmd.commit=$COMMIT -X github.com/kubeorchestra/cli/cmd.buildDate=$BUILD_DATE"
+          LDFLAGS="-X github.com/kubeorch/cli/cmd.version=$VERSION -X github.com/kubeorch/cli/cmd.commit=$COMMIT -X github.com/kubeorch/cli/cmd.buildDate=$BUILD_DATE"
           
           GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/orchcli_darwin_amd64 main.go
           GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/orchcli_darwin_arm64 main.go
@@ -83,7 +83,7 @@ jobs:
             
             #### Via npm (Recommended)
             ```bash
-            npm install -g @kubeorchestra/cli
+            npm install -g @kubeorch/cli
             ```
             
             #### Direct Download
@@ -92,12 +92,12 @@ jobs:
             ##### Linux
             ```bash
             # For Linux x64
-            curl -L https://github.com/KubeOrchestra/cli/releases/download/${{ github.ref_name }}/orchcli_linux_amd64 -o orchcli
+            curl -L https://github.com/KubeOrch/cli/releases/download/${{ github.ref_name }}/orchcli_linux_amd64 -o orchcli
             chmod +x orchcli
             sudo mv orchcli /usr/local/bin/
             
             # For Linux ARM64
-            curl -L https://github.com/KubeOrchestra/cli/releases/download/${{ github.ref_name }}/orchcli_linux_arm64 -o orchcli
+            curl -L https://github.com/KubeOrch/cli/releases/download/${{ github.ref_name }}/orchcli_linux_arm64 -o orchcli
             chmod +x orchcli
             sudo mv orchcli /usr/local/bin/
             ```
@@ -105,12 +105,12 @@ jobs:
             ##### macOS
             ```bash
             # For Intel Macs
-            curl -L https://github.com/KubeOrchestra/cli/releases/download/${{ github.ref_name }}/orchcli_darwin_amd64 -o orchcli
+            curl -L https://github.com/KubeOrch/cli/releases/download/${{ github.ref_name }}/orchcli_darwin_amd64 -o orchcli
             chmod +x orchcli
             sudo mv orchcli /usr/local/bin/
             
             # For Apple Silicon (M1/M2/M3)
-            curl -L https://github.com/KubeOrchestra/cli/releases/download/${{ github.ref_name }}/orchcli_darwin_arm64 -o orchcli
+            curl -L https://github.com/KubeOrch/cli/releases/download/${{ github.ref_name }}/orchcli_darwin_arm64 -o orchcli
             chmod +x orchcli
             sudo mv orchcli /usr/local/bin/
             ```

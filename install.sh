@@ -3,8 +3,8 @@ set -e
 
 # OrchCLI Installation Script
 # Usage:
-#   curl -sfL https://raw.githubusercontent.com/KubeOrchestra/cli/main/install.sh | sh
-#   wget -qO- https://raw.githubusercontent.com/KubeOrchestra/cli/main/install.sh | sh
+#   curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh
+#   wget -qO- https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh
 #
 # Environment variables:
 #   - ORCHCLI_INSTALL_DIR: Installation directory (default: /usr/local/bin)
@@ -12,7 +12,7 @@ set -e
 #   - ORCHCLI_NO_SUDO: Set to 1 to disable sudo usage
 
 # Configuration
-GITHUB_REPO="KubeOrchestra/cli"
+GITHUB_REPO="KubeOrch/cli"
 BINARY_NAME="orchcli"
 DEFAULT_INSTALL_DIR="/usr/local/bin"
 
@@ -223,7 +223,7 @@ uninstall() {
 # Main installation flow
 main() {
     printf "${BLUE}%s${NC}\n" "================================================"
-    printf "${BLUE}%s${NC}\n" "     OrchCLI - KubeOrchestra Developer CLI     "
+    printf "${BLUE}%s${NC}\n" "     OrchCLI - KubeOrch Developer CLI     "
     printf "${BLUE}%s${NC}\n" "================================================"
     printf "\n"
     

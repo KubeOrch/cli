@@ -15,8 +15,8 @@ var (
 
 var stopCmd = &cobra.Command{
 	Use:   "stop",
-	Short: "Stop KubeOrchestra services",
-	Long:  `Stop running KubeOrchestra services`,
+	Short: "Stop KubeOrch services",
+	Long:  `Stop running KubeOrch services`,
 	RunE:  runStop,
 }
 

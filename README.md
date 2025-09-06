@@ -1,43 +1,43 @@
-# OrchCLI - KubeOrchestra Developer CLI
+# OrchCLI - KubeOrch Developer CLI
 
 [![Apache 2.0 License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Cloud Native](https://img.shields.io/badge/Cloud%20Native-orange.svg)](https://landscape.cncf.io/)
 
-OrchCLI is a command-line tool for developing with the KubeOrchestra platform. It streamlines local development, testing, and contribution workflows for cloud-native applications.
+OrchCLI is a command-line tool for developing with the KubeOrch platform. It streamlines local development, testing, and contribution workflows for cloud-native applications.
 
 ## Installation
 
 ### Quick Install
 ```bash
 # Install latest version
-curl -sfL https://raw.githubusercontent.com/KubeOrchestra/cli/main/install.sh | sh
+curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh
 
 # Or with wget
-wget -qO- https://raw.githubusercontent.com/KubeOrchestra/cli/main/install.sh | sh
+wget -qO- https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh
 
 # Install specific version
-curl -sfL https://raw.githubusercontent.com/KubeOrchestra/cli/main/install.sh | ORCHCLI_VERSION=v0.0.2 sh
+curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | ORCHCLI_VERSION=v0.0.2 sh
 
 # Install to custom directory
-curl -sfL https://raw.githubusercontent.com/KubeOrchestra/cli/main/install.sh | ORCHCLI_INSTALL_DIR=~/.local/bin sh
+curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | ORCHCLI_INSTALL_DIR=~/.local/bin sh
 
 # Uninstall
-curl -sfL https://raw.githubusercontent.com/KubeOrchestra/cli/main/install.sh | sh -s -- --uninstall
+curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh -s -- --uninstall
 ```
 
 ### Via NPM
 ```bash
-npm install -g @kubeorchestra/cli
+npm install -g @kubeorch/cli
 ```
 
 ### Via Go
 ```bash
-go install github.com/kubeorchestra/cli@latest
+go install github.com/kubeorch/cli@latest
 ```
 
 ### From Source
 ```bash
-git clone https://github.com/KubeOrchestra/cli
+git clone https://github.com/KubeOrch/cli
 cd cli
 make install
 ```
@@ -46,7 +46,7 @@ make install
 
 - **Concurrent Operations** - Fast parallel execution for cloning, pulling, and health checks
 - **Safe Configuration Management** - File locking prevents corruption during concurrent access
-- **Multiple Project Support** - Manage multiple KubeOrchestra projects seamlessly
+- **Multiple Project Support** - Manage multiple KubeOrch projects seamlessly
 - **Auto-detection** - Automatically determines development mode based on cloned repositories
 - **Hot Reload** - All development modes support hot reload for rapid iteration
 

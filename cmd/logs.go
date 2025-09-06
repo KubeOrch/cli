@@ -18,8 +18,8 @@ var (
 
 var logsCmd = &cobra.Command{
 	Use:   "logs [service]",
-	Short: "View logs from KubeOrchestra services",
-	Long:  `View logs from running KubeOrchestra services. Optionally specify a service name (ui, core, postgres)`,
+	Short: "View logs from KubeOrch services",
+	Long:  `View logs from running KubeOrch services. Optionally specify a service name (ui, core, postgres)`,
 	RunE:  runLogs,
 }
 

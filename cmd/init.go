@@ -20,8 +20,8 @@ var (
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize KubeOrchestra development environment",
-	Long: `Initialize the KubeOrchestra environment. 
+	Short: "Initialize KubeOrch development environment",
+	Long: `Initialize the KubeOrch environment. 
 
 Without flags: Sets up for production testing using Docker images (no repos cloned).
 With --fork-ui or --fork-core: Clones repositories for development.
@@ -50,8 +50,8 @@ func init() {
 	initCmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency installation")
 	initCmd.Flags().BoolVar(&autoInstall, "auto-install", true, "Automatically install missing dependencies (npm, go)")
 
-	initCmd.Flags().Lookup("fork-ui").NoOptDefVal = "KubeOrchestra/ui"
-	initCmd.Flags().Lookup("fork-core").NoOptDefVal = "KubeOrchestra/core"
+	initCmd.Flags().Lookup("fork-ui").NoOptDefVal = "KubeOrch/ui"
+	initCmd.Flags().Lookup("fork-core").NoOptDefVal = "KubeOrch/core"
 
 	rootCmd.AddCommand(initCmd)
 }
@@ -97,8 +97,8 @@ func setupProduction() error {
 	fmt.Println("\n✅ Production environment ready!")
 	fmt.Printf("📁 Project initialized at: %s\n", cwd)
 	fmt.Println("\n📝 Image tags that will be used:")
-	fmt.Println("   - ghcr.io/kubeorchestra/ui:latest")
-	fmt.Println("   - ghcr.io/kubeorchestra/core:latest")
+	fmt.Println("   - ghcr.io/kubeorch/ui:latest")
+	fmt.Println("   - ghcr.io/kubeorch/core:latest")
 	fmt.Println("\n   You can specify versions with: orchcli start --version=v1.2.3")
 	fmt.Println("   Run 'orchcli start' to start services with latest images")
 	return nil
@@ -113,10 +113,10 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	}
 
 	if cloneUI && forkUI == "" {
-		forkUI = "KubeOrchestra/ui"
+		forkUI = "KubeOrch/ui"
 	}
 	if cloneCore && forkCore == "" {
-		forkCore = "KubeOrchestra/core"
+		forkCore = "KubeOrch/core"
 	}
 
 	if err := checkPrerequisites(); err != nil {
@@ -139,7 +139,7 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	var uiIsFork bool
 	var uiPath string
 	if cloneUI {
-		uiRepoURL, uiIsFork = determineRepoURL(forkUI, "KubeOrchestra/ui")
+		uiRepoURL, uiIsFork = determineRepoURL(forkUI, "KubeOrch/ui")
 		uiPath = filepath.Join(cwd, "ui")
 		cloneTasks = append(cloneTasks, Task{
 			Action: func() error {
@@ -155,7 +155,7 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	var coreIsFork bool
 	var corePath string
 	if cloneCore {
-		coreRepoURL, coreIsFork = determineRepoURL(forkCore, "KubeOrchestra/core")
+		coreRepoURL, coreIsFork = determineRepoURL(forkCore, "KubeOrch/core")
 		corePath = filepath.Join(cwd, "core")
 		cloneTasks = append(cloneTasks, Task{
 			Action: func() error {
@@ -177,14 +177,14 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	// Setup upstreams for forks (sequential as they're quick)
 	if cloneUI && uiIsFork {
 		fmt.Println("🔗 Setting up upstream for UI fork...")
-		if err := setupUpstream(uiPath, "https://github.com/KubeOrchestra/ui"); err != nil {
+		if err := setupUpstream(uiPath, "https://github.com/KubeOrch/ui"); err != nil {
 			return fmt.Errorf("failed to setup upstream for UI: %w", err)
 		}
 	}
 
 	if cloneCore && coreIsFork {
 		fmt.Println("🔗 Setting up upstream for Core fork...")
-		if err := setupUpstream(corePath, "https://github.com/KubeOrchestra/core"); err != nil {
+		if err := setupUpstream(corePath, "https://github.com/KubeOrch/core"); err != nil {
 			return fmt.Errorf("failed to setup upstream for Core: %w", err)
 		}
 	}
@@ -253,8 +253,8 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	fmt.Println("   2. Make your changes in the cloned repositories")
 	fmt.Println("   3. Changes will hot-reload automatically")
 
-	usingForks := (forkUI != "" && forkUI != "KubeOrchestra/ui") ||
-		(forkCore != "" && forkCore != "KubeOrchestra/core")
+	usingForks := (forkUI != "" && forkUI != "KubeOrch/ui") ||
+		(forkCore != "" && forkCore != "KubeOrch/core")
 
 	if usingForks {
 		fmt.Println("\n🍴 Fork workflow detected (External Contributor):")
@@ -281,7 +281,7 @@ func determineRepoURL(repoName, defaultRepo string) (string, bool) {
 }
 
 func validateRepoFormat(repo string) error {
-	if repo == "" || repo == "KubeOrchestra/ui" || repo == "KubeOrchestra/core" {
+	if repo == "" || repo == "KubeOrch/ui" || repo == "KubeOrch/core" {
 		return nil
 	}
 

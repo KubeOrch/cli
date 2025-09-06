@@ -12,8 +12,8 @@ import (
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Check status of KubeOrchestra services",
-	Long:  `Check the status and health of running KubeOrchestra services`,
+	Short: "Check status of KubeOrch services",
+	Long:  `Check the status and health of running KubeOrch services`,
 	RunE:  runStatus,
 }
 

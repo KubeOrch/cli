@@ -16,8 +16,8 @@ var (
 
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start KubeOrchestra services",
-	Long: `Start KubeOrchestra services based on your initialization:
+	Short: "Start KubeOrch services",
+	Long: `Start KubeOrch services based on your initialization:
 - If no repos cloned: runs from Docker images
 - If UI cloned: runs UI locally with hot reload, Core from image
 - If Core cloned: runs Core locally with hot reload, UI from image

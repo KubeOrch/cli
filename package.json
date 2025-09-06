@@ -1,7 +1,7 @@
 {
-  "name": "@kubeorchestra/cli",
-  "version": "0.0.2",
-  "description": "OrchCLI - KubeOrchestra Developer CLI",
+  "name": "@kubeorch/cli",
+  "version": "0.0.3",
+  "description": "OrchCLI - KubeOrch Developer CLI",
   "main": "npm/index.js",
   "bin": {
     "orchcli": "./npm/bin/orchcli"
@@ -13,10 +13,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KubeOrchestra/cli.git"
+    "url": "git+https://github.com/KubeOrch/cli.git"
   },
   "keywords": [
-    "kubeorchestra",
+    "kubeorch",
     "kubernetes",
     "orchestration",
     "cli",
@@ -25,12 +25,12 @@
     "docker",
     "container"
   ],
-  "author": "KubeOrchestra Team",
+  "author": "KubeOrch Team",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/KubeOrchestra/cli/issues"
+    "url": "https://github.com/KubeOrch/cli/issues"
   },
-  "homepage": "https://github.com/KubeOrchestra/cli#readme",
+  "homepage": "https://github.com/KubeOrch/cli#readme",
   "engines": {
     "node": ">=14.0.0"
   },

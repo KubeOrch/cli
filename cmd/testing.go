@@ -54,8 +54,8 @@ func ResetCommands() {
 	initCmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency installation")
 	initCmd.Flags().BoolVar(&autoInstall, "auto-install", true, "Automatically install missing dependencies")
 
-	initCmd.Flags().Lookup("fork-ui").NoOptDefVal = "KubeOrchestra/ui"
-	initCmd.Flags().Lookup("fork-core").NoOptDefVal = "KubeOrchestra/core"
+	initCmd.Flags().Lookup("fork-ui").NoOptDefVal = "KubeOrch/ui"
+	initCmd.Flags().Lookup("fork-core").NoOptDefVal = "KubeOrch/core"
 
 	startCmd.Flags().BoolVarP(&detach, "detach", "d", false, "run services in background")
 	stopCmd.Flags().BoolVarP(&removeVolumes, "volumes", "v", false, "remove volumes when stopping")

@@ -15,8 +15,8 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "orchcli",
-	Short: "OrchCLI - KubeOrchestra Developer CLI",
-	Long: `OrchCLI is a developer tool for the KubeOrchestra platform.
+	Short: "OrchCLI - KubeOrch Developer CLI",
+	Long: `OrchCLI is a developer tool for the KubeOrch platform.
 
 It helps developers:
 - Clone and setup UI/Core repositories for development  
@@ -36,7 +36,7 @@ func Execute() {
 func init() {
 	rootCmd.SetVersionTemplate(`OrchCLI {{.Version}}
 {{printf "License: Apache-2.0"}}
-{{printf "Repository: https://github.com/KubeOrchestra/cli"}}
+{{printf "Repository: https://github.com/KubeOrch/cli"}}
 `)
 
 	rootCmd.CompletionOptions.DisableDefaultCmd = true

@@ -11,8 +11,8 @@ import (
 
 var restartCmd = &cobra.Command{
 	Use:   "restart [service]",
-	Short: "Restart KubeOrchestra services",
-	Long:  `Restart KubeOrchestra services. Optionally specify a service name (ui, core, postgres)`,
+	Short: "Restart KubeOrch services",
+	Long:  `Restart KubeOrch services. Optionally specify a service name (ui, core, postgres)`,
 	RunE:  runRestart,
 }
 
