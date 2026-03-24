@@ -147,11 +147,14 @@ func TestConfigManagement(t *testing.T) {
 }
 
 func TestProjectPaths(t *testing.T) {
+	// Use platform-appropriate absolute paths
+	basePath := filepath.Join(os.TempDir(), "testproject")
+
 	t.Run("AbsolutePaths", func(t *testing.T) {
 		config := cmd.ProjectConfig{
-			Path:     "/home/user/myproject",
-			UIPath:   "/home/user/myproject/ui",
-			CorePath: "/home/user/myproject/core",
+			Path:     basePath,
+			UIPath:   filepath.Join(basePath, "ui"),
+			CorePath: filepath.Join(basePath, "core"),
 		}
 
 		assert.True(t, filepath.IsAbs(config.Path))
@@ -160,13 +163,12 @@ func TestProjectPaths(t *testing.T) {
 	})
 
 	t.Run("PathRelationships", func(t *testing.T) {
-		basePath := "/home/user/project"
 		config := cmd.ProjectConfig{
 			UIPath:   filepath.Join(basePath, "ui"),
 			CorePath: filepath.Join(basePath, "core"),
 		}
 
-		// UI and Core should be subdirectories of Path
+		// UI and Core should be subdirectories of basePath
 		assert.Equal(t, basePath, filepath.Dir(config.UIPath))
 		assert.Equal(t, basePath, filepath.Dir(config.CorePath))
 	})
