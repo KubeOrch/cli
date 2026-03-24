@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -91,4 +92,46 @@ func (h *TestHelper) Cleanup() {
 	if h.TempDir != "" {
 		os.RemoveAll(h.TempDir)
 	}
+}
+
+// CreateMockCommand creates a platform-appropriate mock executable in dir.
+// On Unix it creates a shell script, on Windows a .bat file.
+// The script echoes the provided output when executed.
+func CreateMockCommand(t *testing.T, dir, name, scriptBody string) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return createWindowsMock(t, dir, name, scriptBody)
+	}
+	return createUnixMock(t, dir, name, scriptBody)
+}
+
+func createUnixMock(
+	t *testing.T, dir, name, scriptBody string,
+) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	content := "#!/bin/sh\n" + scriptBody + "\n"
+	err := os.WriteFile(path, []byte(content), 0755)
+	require.NoError(t, err)
+	return path
+}
+
+func createWindowsMock(
+	t *testing.T, dir, name, scriptBody string,
+) string {
+	t.Helper()
+	// Windows needs .bat extension for scripts to be executable
+	path := filepath.Join(dir, name+".bat")
+	content := "@echo off\r\n" + scriptBody + "\r\n"
+	err := os.WriteFile(path, []byte(content), 0755)
+	require.NoError(t, err)
+	return path
+}
+
+// MockPATH prepends dir to PATH using the correct separator.
+func MockPATH(dir string) {
+	os.Setenv(
+		"PATH",
+		dir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
 }

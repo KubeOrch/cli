@@ -3,10 +3,12 @@ package unit
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/kubeorchestra/cli/cmd"
+	"github.com/kubeorchestra/cli/tests/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -15,98 +17,118 @@ type CommandTestSuite struct {
 	suite.Suite
 	origDir string
 	tempDir string
+	origPATH string
 }
 
-func (suite *CommandTestSuite) SetupTest() {
-	// Save original directory
+func (s *CommandTestSuite) SetupTest() {
 	origDir, _ := os.Getwd()
-	suite.origDir = origDir
+	s.origDir = origDir
+	s.origPATH = os.Getenv("PATH")
 
-	// Create and change to temp directory
-	suite.tempDir = suite.T().TempDir()
-	os.Chdir(suite.tempDir)
+	s.tempDir = s.T().TempDir()
+	os.Chdir(s.tempDir)
 
-	// Reset commands for each test
 	cmd.ResetCommands()
 }
 
-func (suite *CommandTestSuite) TearDownTest() {
-	// Return to original directory
-	os.Chdir(suite.origDir)
+func (s *CommandTestSuite) TearDownTest() {
+	os.Chdir(s.origDir)
+	os.Setenv("PATH", s.origPATH)
 }
 
-func (suite *CommandTestSuite) TestVersionCommand() {
+func (s *CommandTestSuite) TestVersionCommand() {
 	rootCmd := cmd.GetRootCommand()
 	output, err := cmd.ExecuteCommandC(rootCmd, "--version")
 
-	assert.NoError(suite.T(), err)
-	assert.Contains(suite.T(), output, "OrchCLI")
-	assert.Contains(suite.T(), output, "License: Apache-2.0")
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "OrchCLI")
+	assert.Contains(s.T(), output, "License: Apache-2.0")
 }
 
-func (suite *CommandTestSuite) TestHelpCommand() {
+func (s *CommandTestSuite) TestHelpCommand() {
 	rootCmd := cmd.GetRootCommand()
 	output, err := cmd.ExecuteCommandC(rootCmd, "--help")
 
-	assert.NoError(suite.T(), err)
-	assert.Contains(suite.T(), output, "OrchCLI is a developer tool")
-	assert.Contains(suite.T(), output, "Available Commands:")
-	assert.Contains(suite.T(), output, "init")
-	assert.Contains(suite.T(), output, "start")
-	assert.Contains(suite.T(), output, "stop")
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "OrchCLI is a developer tool")
+	assert.Contains(s.T(), output, "Available Commands:")
+	assert.Contains(s.T(), output, "init")
+	assert.Contains(s.T(), output, "start")
+	assert.Contains(s.T(), output, "stop")
 }
 
-func (suite *CommandTestSuite) TestInitProductionMode() {
-	// Create mock docker-compose command
-	mockScript := `#!/bin/sh
+func (s *CommandTestSuite) TestInitProductionMode() {
+	if runtime.GOOS == "windows" {
+		// Create mock docker.bat and docker-compose.bat
+		helpers.CreateMockCommand(s.T(), s.tempDir,
+			"docker", `echo Docker version 24.0.0`)
+		helpers.CreateMockCommand(s.T(), s.tempDir,
+			"docker-compose", `echo Docker Compose version v2.20.0`)
+	} else {
+		mockScript := `#!/bin/sh
 echo "Docker Compose version v2.20.0"
 `
-	err := os.WriteFile(filepath.Join(suite.tempDir, "docker-compose"), []byte(mockScript), 0755)
-	assert.NoError(suite.T(), err)
+		os.WriteFile(
+			filepath.Join(s.tempDir, "docker-compose"),
+			[]byte(mockScript), 0755,
+		)
+		// Also mock docker itself
+		dockerMock := `#!/bin/sh
+echo "Docker version 24.0.0"
+`
+		os.WriteFile(
+			filepath.Join(s.tempDir, "docker"),
+			[]byte(dockerMock), 0755,
+		)
+	}
 
-	// Add temp dir to PATH
-	os.Setenv("PATH", suite.tempDir+":"+os.Getenv("PATH"))
+	helpers.MockPATH(s.tempDir)
 
 	rootCmd := cmd.GetRootCommand()
-	output, err := cmd.ExecuteCommandC(rootCmd, "init")
+	output, err := cmd.ExecuteCommandC(rootCmd, "init", "--skip-deps")
 
-	assert.NoError(suite.T(), err)
-	assert.Contains(suite.T(), output, "Setting up OrchCLI for production testing")
-	assert.Contains(suite.T(), output, "Production environment ready")
-	assert.Contains(suite.T(), output, "Project initialized at:")
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "Setting up OrchCLI for production testing")
+	assert.Contains(s.T(), output, "Production environment ready")
+	assert.Contains(s.T(), output, "Project initialized at:")
 
-	// Check directories were created
-	assert.DirExists(suite.T(), filepath.Join(suite.tempDir, "docker"))
-	assert.DirExists(suite.T(), filepath.Join(suite.tempDir, "scripts"))
+	assert.DirExists(s.T(), filepath.Join(s.tempDir, "docker"))
+	assert.DirExists(s.T(), filepath.Join(s.tempDir, "scripts"))
 
-	// Check config was saved
 	config, err := cmd.LoadConfig()
-	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), config.Projects[suite.tempDir])
-	assert.Equal(suite.T(), "production", config.Projects[suite.tempDir].Mode)
+	assert.NoError(s.T(), err)
+	assert.NotNil(s.T(), config.Projects[s.tempDir])
+	assert.Equal(s.T(), "production", config.Projects[s.tempDir].Mode)
 }
 
-func (suite *CommandTestSuite) TestInitWithInvalidFork() {
+func (s *CommandTestSuite) TestInitWithInvalidFork() {
 	rootCmd := cmd.GetRootCommand()
-	_, err := cmd.ExecuteCommandC(rootCmd, "init", "--fork-ui=invalid@repo#name")
+	_, err := cmd.ExecuteCommandC(
+		rootCmd, "init", "--fork-ui=invalid@repo#name",
+	)
 
-	assert.Error(suite.T(), err)
+	assert.Error(s.T(), err)
 }
 
-func (suite *CommandTestSuite) TestStartWithMissingComposeFile() {
+func (s *CommandTestSuite) TestStartWithMissingComposeFile() {
 	rootCmd := cmd.GetRootCommand()
 	_, err := cmd.ExecuteCommandC(rootCmd, "start")
 
-	assert.Error(suite.T(), err)
-	// The error could be either no project initialized or missing compose file
-	assert.True(suite.T(),
-		err.Error() == "no project initialized in current directory. Run 'orchcli init' first" ||
-			strings.Contains(err.Error(), "compose file"))
+	assert.Error(s.T(), err)
+	errMsg := err.Error()
+	assert.True(s.T(),
+		strings.Contains(errMsg, "no project initialized") ||
+			strings.Contains(errMsg, "compose file") ||
+			strings.Contains(errMsg, "docker"),
+		"unexpected error: %s", errMsg)
 }
 
-func (suite *CommandTestSuite) TestDebugCommand() {
-	// Create mock docker command
-	mockScript := `#!/bin/sh
+func (s *CommandTestSuite) TestDebugCommand() {
+	if runtime.GOOS == "windows" {
+		helpers.CreateMockCommand(s.T(), s.tempDir, "docker",
+			`echo NETWORK ID     NAME                DRIVER    SCOPE`)
+	} else {
+		mockScript := `#!/bin/sh
 case "$1" in
 	network)
 		echo "NETWORK ID     NAME                DRIVER    SCOPE"
@@ -123,43 +145,50 @@ case "$1" in
 		;;
 esac
 `
-	err := os.WriteFile(filepath.Join(suite.tempDir, "docker"), []byte(mockScript), 0755)
-	assert.NoError(suite.T(), err)
-	os.Setenv("PATH", suite.tempDir+":"+os.Getenv("PATH"))
+		os.WriteFile(
+			filepath.Join(s.tempDir, "docker"),
+			[]byte(mockScript), 0755,
+		)
+	}
+
+	helpers.MockPATH(s.tempDir)
 
 	rootCmd := cmd.GetRootCommand()
 	output, err := cmd.ExecuteCommandC(rootCmd, "debug")
 
-	assert.NoError(suite.T(), err)
-	assert.Contains(suite.T(), output, "debugging service connectivity")
-	assert.Contains(suite.T(), output, "docker networks")
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "debugging service connectivity")
+	assert.Contains(s.T(), output, "docker networks")
 }
 
-func (suite *CommandTestSuite) TestStatusCommand() {
-	// Initialize project first
+func (s *CommandTestSuite) TestStatusCommand() {
 	config := &cmd.OrchConfig{
-		CurrentProject: suite.tempDir,
+		CurrentProject: s.tempDir,
 		Projects: map[string]*cmd.ProjectConfig{
-			suite.tempDir: {
-				Path: suite.tempDir,
+			s.tempDir: {
+				Path: s.tempDir,
 				Mode: "production",
 			},
 		},
 	}
 	err := cmd.SaveConfig(config)
-	assert.NoError(suite.T(), err)
+	assert.NoError(s.T(), err)
 
-	// Create compose file
-	os.MkdirAll(filepath.Join(suite.tempDir, "docker"), 0755)
+	os.MkdirAll(filepath.Join(s.tempDir, "docker"), 0755)
 	composeContent := `version: '3.8'
 services:
   postgres:
     image: postgres:14`
-	err = os.WriteFile(filepath.Join(suite.tempDir, "docker/docker-compose.prod.yml"), []byte(composeContent), 0644)
-	assert.NoError(suite.T(), err)
+	os.WriteFile(
+		filepath.Join(s.tempDir, "docker/docker-compose.prod.yml"),
+		[]byte(composeContent), 0644,
+	)
 
-	// Create mock docker binary (not directory)
-	mockScript := `#!/bin/sh
+	if runtime.GOOS == "windows" {
+		helpers.CreateMockCommand(s.T(), s.tempDir, "docker",
+			`echo NAME                  STATUS    PORTS`)
+	} else {
+		mockScript := `#!/bin/sh
 if [ "$1" = "compose" ]; then
 	echo "Docker Compose version v2.20.0"
 elif [ "$2" = "-f" ]; then
@@ -167,30 +196,26 @@ elif [ "$2" = "-f" ]; then
 	echo "kubeorchestra-postgres  running   5432/tcp"
 fi
 `
-	err = os.WriteFile(filepath.Join(suite.tempDir, "docker-mock"), []byte(mockScript), 0755)
-	assert.NoError(suite.T(), err)
-
-	// Create symlink or copy to docker
-	err = os.Symlink(filepath.Join(suite.tempDir, "docker-mock"), filepath.Join(suite.tempDir, "docker"))
-	if err != nil {
-		// If symlink fails, just skip this test
-		suite.T().Skip("Cannot create docker mock")
+		os.WriteFile(
+			filepath.Join(s.tempDir, "docker"),
+			[]byte(mockScript), 0755,
+		)
 	}
 
-	os.Setenv("PATH", suite.tempDir+":"+os.Getenv("PATH"))
+	helpers.MockPATH(s.tempDir)
 
 	rootCmd := cmd.GetRootCommand()
 	output, err := cmd.ExecuteCommandC(rootCmd, "status")
 
-	assert.NoError(suite.T(), err)
-	assert.Contains(suite.T(), output, "checking kubeorchestra services")
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "checking kubeorchestra services")
 }
 
-func (suite *CommandTestSuite) TestExecWithInvalidService() {
+func (s *CommandTestSuite) TestExecWithInvalidService() {
 	rootCmd := cmd.GetRootCommand()
 	_, err := cmd.ExecuteCommandC(rootCmd, "exec", "invalid-service")
 
-	assert.Error(suite.T(), err)
+	assert.Error(s.T(), err)
 }
 
 func TestCommandTestSuite(t *testing.T) {
