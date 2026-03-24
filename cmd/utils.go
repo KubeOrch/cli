@@ -73,30 +73,68 @@ func joinArgs(args []string) string {
 	return result
 }
 
+// isDebian returns true if the current system is Debian/Ubuntu-based.
+func isDebian() bool {
+	_, err := os.Stat("/etc/debian_version")
+	return err == nil
+}
+
+// hasHomebrew returns true if Homebrew is available on the system.
+func hasHomebrew() bool {
+	_, err := exec.LookPath("brew")
+	return err == nil
+}
+
+// runCommand executes a command with stdout/stderr piped to the terminal.
+func runCommand(name string, args ...string) error {
+	c := exec.Command(name, args...)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	return c.Run()
+}
+
+// runShell executes a shell script via bash.
+func runShell(script string) error {
+	c := exec.Command("bash", "-c", script)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	return c.Run()
+}
+
+// installViaApt updates package lists and installs the given packages.
+func installViaApt(name string, packages []string) error {
+	fmt.Printf("   installing %s via apt...\n", name)
+	if err := runCommand("apt-get", "update"); err != nil {
+		return fmt.Errorf("failed to update package list: %w", err)
+	}
+	args := append([]string{"install", "-y"}, packages...)
+	if err := runCommand("apt-get", args...); err != nil {
+		return fmt.Errorf("failed to install %s: %w", name, err)
+	}
+	return nil
+}
+
+// installViaBrew installs a package using Homebrew.
+func installViaBrew(name, brewPkg string, cask bool) error {
+	fmt.Printf("   installing %s via homebrew...\n", name)
+	args := []string{"install"}
+	if cask {
+		args = append(args, "--cask")
+	}
+	args = append(args, brewPkg)
+	if err := runCommand("brew", args...); err != nil {
+		return fmt.Errorf("failed to install %s via brew: %w", name, err)
+	}
+	return nil
+}
+
 func installDocker() error {
-	if _, err := os.Stat("/etc/debian_version"); err == nil {
-		fmt.Println("   installing docker via apt...")
-
-		updateCmd := exec.Command("apt-get", "update")
-		updateCmd.Stdout = os.Stdout
-		updateCmd.Stderr = os.Stderr
-		if err := updateCmd.Run(); err != nil {
-			return fmt.Errorf("failed to update package list: %w", err)
+	if isDebian() {
+		if err := installViaApt("docker dependencies", []string{"ca-certificates", "curl", "gnupg", "lsb-release"}); err != nil {
+			return err
 		}
 
-		depsCmd := exec.Command("apt-get", "install", "-y", "ca-certificates", "curl", "gnupg", "lsb-release")
-		depsCmd.Stdout = os.Stdout
-		depsCmd.Stderr = os.Stderr
-		if err := depsCmd.Run(); err != nil {
-			return fmt.Errorf("failed to install docker dependencies: %w", err)
-		}
-
-		gpgScript := "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | " +
-			"gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"
-		gpgCmd := exec.Command("bash", "-c", gpgScript)
-		gpgCmd.Stdout = os.Stdout
-		gpgCmd.Stderr = os.Stderr
-		if err := gpgCmd.Run(); err != nil {
+		if err := runShell("curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"); err != nil {
 			return fmt.Errorf("failed to add docker gpg key: %w", err)
 		}
 
@@ -104,75 +142,43 @@ func installDocker() error {
 			`signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] ` +
 			`https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | ` +
 			`tee /etc/apt/sources.list.d/docker.list > /dev/null`
-		repoCmd := exec.Command("bash", "-c", repoScript)
-		repoCmd.Stdout = os.Stdout
-		repoCmd.Stderr = os.Stderr
-		if err := repoCmd.Run(); err != nil {
+		if err := runShell(repoScript); err != nil {
 			return fmt.Errorf("failed to setup docker repository: %w", err)
 		}
 
-		update2Cmd := exec.Command("apt-get", "update")
-		update2Cmd.Stdout = os.Stdout
-		update2Cmd.Stderr = os.Stderr
-		if err := update2Cmd.Run(); err != nil {
+		if err := runCommand("apt-get", "update"); err != nil {
 			return fmt.Errorf("failed to update package list after adding docker repo: %w", err)
 		}
-
-		installCmd := exec.Command("apt-get", "install", "-y", "docker-ce", "docker-ce-cli", "containerd.io")
-		installCmd.Stdout = os.Stdout
-		installCmd.Stderr = os.Stderr
-		if err := installCmd.Run(); err != nil {
+		if err := runCommand("apt-get", "install", "-y", "docker-ce", "docker-ce-cli", "containerd.io"); err != nil {
 			return fmt.Errorf("failed to install docker: %w", err)
 		}
 		return nil
 	}
 
-	if _, err := exec.LookPath("brew"); err == nil {
-		fmt.Println("   installing docker via homebrew...")
-		cmd := exec.Command("brew", "install", "--cask", "docker")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to install docker via brew: %w", err)
-		}
-		return nil
+	if hasHomebrew() {
+		return installViaBrew("docker", "docker", true)
 	}
 
-	return fmt.Errorf("automatic installation not supported for this os")
+	return fmt.Errorf("automatic installation of docker not supported for this os")
 }
 
 func installDockerCompose() error {
-	if _, err := os.Stat("/etc/debian_version"); err == nil {
+	if isDebian() {
 		fmt.Println("   installing docker-compose...")
-
-		downloadCmd := exec.Command("bash", "-c",
-			`curl -L "https://github.com/docker/compose/releases/latest/download/`+
-				`docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose`)
-		downloadCmd.Stdout = os.Stdout
-		downloadCmd.Stderr = os.Stderr
-		if err := downloadCmd.Run(); err != nil {
+		if err := runShell(`curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose`); err != nil {
 			return fmt.Errorf("failed to download docker-compose: %w", err)
 		}
-
-		chmodCmd := exec.Command("chmod", "+x", "/usr/local/bin/docker-compose")
-		if err := chmodCmd.Run(); err != nil {
+		if err := runCommand("chmod", "+x", "/usr/local/bin/docker-compose"); err != nil {
 			return fmt.Errorf("failed to make docker-compose executable: %w", err)
 		}
 		return nil
 	}
 
-	if _, err := exec.LookPath("brew"); err == nil {
-		fmt.Println("   installing docker-compose via homebrew...")
-		cmd := exec.Command("brew", "install", "docker-compose")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to install docker-compose via brew: %w", err)
-		}
-		return nil
+	if hasHomebrew() {
+		return installViaBrew("docker-compose", "docker-compose", false)
 	}
 
-	return fmt.Errorf("automatic installation not supported for this os")
+	return fmt.Errorf("automatic installation of docker-compose not supported for this os")
 }
 
 func getDockerComposeCommand() []string {

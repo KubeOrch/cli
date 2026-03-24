@@ -434,117 +434,37 @@ func installCoreDependencies(corePath string) error {
 }
 
 func installNodeJS() error {
-	if _, err := os.Stat("/etc/debian_version"); err == nil {
-		fmt.Println("   installing via apt...")
-
-		updateCmd := exec.Command("apt-get", "update")
-		updateCmd.Stdout = os.Stdout
-		updateCmd.Stderr = os.Stderr
-		if err := updateCmd.Run(); err != nil {
-			return fmt.Errorf("failed to update package list: %w", err)
+	if isDebian() {
+		if err := installViaApt("curl", []string{"curl"}); err != nil {
+			return err
 		}
-
-		curlCmd := exec.Command("apt-get", "install", "-y", "curl")
-		curlCmd.Stdout = os.Stdout
-		curlCmd.Stderr = os.Stderr
-		if err := curlCmd.Run(); err != nil {
-			return fmt.Errorf("failed to install curl: %w", err)
-		}
-
-		setupCmd := exec.Command("bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -")
-		setupCmd.Stdout = os.Stdout
-		setupCmd.Stderr = os.Stderr
-		if err := setupCmd.Run(); err != nil {
+		if err := runShell("curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -"); err != nil {
 			return fmt.Errorf("failed to setup node.js repository: %w", err)
 		}
-
-		installCmd := exec.Command("apt-get", "install", "-y", "nodejs")
-		installCmd.Stdout = os.Stdout
-		installCmd.Stderr = os.Stderr
-		if err := installCmd.Run(); err != nil {
-			return fmt.Errorf("failed to install nodejs: %w", err)
-		}
-		return nil
+		return installViaApt("nodejs", []string{"nodejs"})
 	}
-
-	if _, err := exec.LookPath("brew"); err == nil {
-		fmt.Println("   installing via homebrew...")
-		cmd := exec.Command("brew", "install", "node")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to install node via brew: %w", err)
-		}
-		return nil
+	if hasHomebrew() {
+		return installViaBrew("node", "node", false)
 	}
-
-	return fmt.Errorf("automatic installation not supported for this os")
+	return fmt.Errorf("automatic installation of nodejs not supported for this os")
 }
 
 func installGo() error {
-	if _, err := os.Stat("/etc/debian_version"); err == nil {
-		fmt.Println("   installing go via apt...")
-
-		updateCmd := exec.Command("apt-get", "update")
-		updateCmd.Stdout = os.Stdout
-		updateCmd.Stderr = os.Stderr
-		if err := updateCmd.Run(); err != nil {
-			return fmt.Errorf("failed to update package list: %w", err)
-		}
-
-		installCmd := exec.Command("apt-get", "install", "-y", "golang-go")
-		installCmd.Stdout = os.Stdout
-		installCmd.Stderr = os.Stderr
-		if err := installCmd.Run(); err != nil {
-			return fmt.Errorf("failed to install golang-go: %w", err)
-		}
-		return nil
+	if isDebian() {
+		return installViaApt("go", []string{"golang-go"})
 	}
-
-	if _, err := exec.LookPath("brew"); err == nil {
-		fmt.Println("   installing via homebrew...")
-		cmd := exec.Command("brew", "install", "go")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to install go via brew: %w", err)
-		}
-		return nil
+	if hasHomebrew() {
+		return installViaBrew("go", "go", false)
 	}
-
-	return fmt.Errorf("automatic installation not supported for this os")
+	return fmt.Errorf("automatic installation of go not supported for this os")
 }
 
 func installGit() error {
-	if _, err := os.Stat("/etc/debian_version"); err == nil {
-		fmt.Println("   installing git via apt...")
-
-		updateCmd := exec.Command("apt-get", "update")
-		updateCmd.Stdout = os.Stdout
-		updateCmd.Stderr = os.Stderr
-		if err := updateCmd.Run(); err != nil {
-			return fmt.Errorf("failed to update package list: %w", err)
-		}
-
-		installCmd := exec.Command("apt-get", "install", "-y", "git")
-		installCmd.Stdout = os.Stdout
-		installCmd.Stderr = os.Stderr
-		if err := installCmd.Run(); err != nil {
-			return fmt.Errorf("failed to install git: %w", err)
-		}
-		return nil
+	if isDebian() {
+		return installViaApt("git", []string{"git"})
 	}
-
-	if _, err := exec.LookPath("brew"); err == nil {
-		fmt.Println("   installing via homebrew...")
-		cmd := exec.Command("brew", "install", "git")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to install git via brew: %w", err)
-		}
-		return nil
+	if hasHomebrew() {
+		return installViaBrew("git", "git", false)
 	}
-
-	return fmt.Errorf("automatic installation not supported for this os")
+	return fmt.Errorf("automatic installation of git not supported for this os")
 }
