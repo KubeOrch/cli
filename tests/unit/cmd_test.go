@@ -218,6 +218,151 @@ func (s *CommandTestSuite) TestExecWithInvalidService() {
 	assert.Error(s.T(), err)
 }
 
+// setupProductionProject creates a production project config and
+// compose file in the temp directory, with docker mocked.
+func (s *CommandTestSuite) setupProductionProject() {
+	config := &cmd.OrchConfig{
+		CurrentProject: s.tempDir,
+		Projects: map[string]*cmd.ProjectConfig{
+			s.tempDir: {
+				Path: s.tempDir,
+				Mode: "production",
+			},
+		},
+	}
+	err := cmd.SaveConfig(config)
+	assert.NoError(s.T(), err)
+
+	os.MkdirAll(filepath.Join(s.tempDir, "docker"), 0755)
+	composeContent := "version: '3.8'\nservices:\n  core:\n" +
+		"    image: kubeorch/core:latest\n"
+	os.WriteFile(
+		filepath.Join(s.tempDir, "docker/docker-compose.prod.yml"),
+		[]byte(composeContent), 0644,
+	)
+
+	if runtime.GOOS == "windows" {
+		helpers.CreateMockCommand(s.T(), s.tempDir, "docker",
+			"echo mock-docker-output")
+		helpers.CreateMockCommand(s.T(), s.tempDir, "docker-compose",
+			"echo mock-compose-output")
+	} else {
+		dockerMock := "#!/bin/sh\necho mock-docker-output\n"
+		os.WriteFile(filepath.Join(s.tempDir, "docker"),
+			[]byte(dockerMock), 0755)
+		composeMock := "#!/bin/sh\necho mock-compose-output\n"
+		os.WriteFile(filepath.Join(s.tempDir, "docker-compose"),
+			[]byte(composeMock), 0755)
+	}
+	helpers.MockPATH(s.tempDir)
+}
+
+func (s *CommandTestSuite) TestStopCommand() {
+	s.setupProductionProject()
+
+	rootCmd := cmd.GetRootCommand()
+	output, err := cmd.ExecuteCommandC(rootCmd, "stop")
+
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "stopping")
+}
+
+func (s *CommandTestSuite) TestStopWithVolumes() {
+	s.setupProductionProject()
+
+	rootCmd := cmd.GetRootCommand()
+	output, err := cmd.ExecuteCommandC(rootCmd, "stop", "-v")
+
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "stopping")
+}
+
+func (s *CommandTestSuite) TestRestartCommand() {
+	s.setupProductionProject()
+
+	rootCmd := cmd.GetRootCommand()
+	output, err := cmd.ExecuteCommandC(rootCmd, "restart")
+
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "restarting")
+}
+
+func (s *CommandTestSuite) TestRestartSpecificService() {
+	s.setupProductionProject()
+
+	rootCmd := cmd.GetRootCommand()
+	output, err := cmd.ExecuteCommandC(rootCmd, "restart", "core")
+
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "restarting")
+}
+
+func (s *CommandTestSuite) TestLogsCommand() {
+	s.setupProductionProject()
+
+	rootCmd := cmd.GetRootCommand()
+	_, err := cmd.ExecuteCommandC(rootCmd, "logs")
+
+	assert.NoError(s.T(), err)
+}
+
+func (s *CommandTestSuite) TestLogsWithService() {
+	s.setupProductionProject()
+
+	rootCmd := cmd.GetRootCommand()
+	_, err := cmd.ExecuteCommandC(
+		rootCmd, "logs", "--service", "core",
+	)
+
+	assert.NoError(s.T(), err)
+}
+
+func (s *CommandTestSuite) TestExecWithValidService() {
+	s.setupProductionProject()
+
+	rootCmd := cmd.GetRootCommand()
+	// postgres is a valid service name per the allowlist in exec.go
+	_, err := cmd.ExecuteCommandC(rootCmd, "exec", "postgres", "ls")
+
+	// May error because container isn't running, but should not
+	// error with "invalid service"
+	if err != nil {
+		assert.NotContains(s.T(), err.Error(), "invalid service")
+	}
+}
+
+func (s *CommandTestSuite) TestStartWithDetach() {
+	s.setupProductionProject()
+
+	rootCmd := cmd.GetRootCommand()
+	output, err := cmd.ExecuteCommandC(rootCmd, "start", "-d")
+
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), output, "starting")
+}
+
+func (s *CommandTestSuite) TestStopWithoutInit() {
+	// No project initialized — should error
+	rootCmd := cmd.GetRootCommand()
+	_, err := cmd.ExecuteCommandC(rootCmd, "stop")
+
+	assert.Error(s.T(), err)
+}
+
+func (s *CommandTestSuite) TestLogsWithoutInit() {
+	rootCmd := cmd.GetRootCommand()
+	_, err := cmd.ExecuteCommandC(rootCmd, "logs")
+
+	assert.Error(s.T(), err)
+}
+
+func (s *CommandTestSuite) TestRestartWithoutInit() {
+	rootCmd := cmd.GetRootCommand()
+	_, err := cmd.ExecuteCommandC(rootCmd, "restart")
+
+	assert.Error(s.T(), err)
+}
+
 func TestCommandTestSuite(t *testing.T) {
 	suite.Run(t, new(CommandTestSuite))
 }
