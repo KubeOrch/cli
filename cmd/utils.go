@@ -134,7 +134,9 @@ func installDocker() error {
 			return err
 		}
 
-		if err := runShell("curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"); err != nil {
+		gpgScript := "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | " +
+			"gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"
+		if err := runShell(gpgScript); err != nil {
 			return fmt.Errorf("failed to add docker gpg key: %w", err)
 		}
 
@@ -165,7 +167,10 @@ func installDocker() error {
 func installDockerCompose() error {
 	if isDebian() {
 		fmt.Println("   installing docker-compose...")
-		if err := runShell(`curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose`); err != nil {
+		composeURL := `https://github.com/docker/compose/releases/latest/download/` +
+			`docker-compose-$(uname -s)-$(uname -m)`
+		dlScript := fmt.Sprintf(`curl -L "%s" -o /usr/local/bin/docker-compose`, composeURL)
+		if err := runShell(dlScript); err != nil {
 			return fmt.Errorf("failed to download docker-compose: %w", err)
 		}
 		if err := runCommand("chmod", "+x", "/usr/local/bin/docker-compose"); err != nil {
