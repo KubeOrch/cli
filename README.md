@@ -1,7 +1,7 @@
 # OrchCLI - KubeOrch Developer CLI
 
 [![Apache 2.0 License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Cloud Native](https://img.shields.io/badge/Cloud%20Native-orange.svg)](https://landscape.cncf.io/)
+[![CNCF Aspiring](https://img.shields.io/badge/CNCF-Aspiring-blue.svg)](https://www.cncf.io/projects/)
 
 OrchCLI is a command-line tool for developing with the KubeOrch platform. It streamlines local development, testing, and contribution workflows for cloud-native applications.
 
