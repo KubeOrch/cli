@@ -13,19 +13,19 @@ var execCmd = &cobra.Command{
 	Use:   "exec <service> [command]",
 	Short: "Execute a command in a running service container",
 	Long: `Execute a command in a running service container.
-	
-Services: postgres, core, ui
+
+Services: mongodb, core, ui
 
 Examples:
-  # Open PostgreSQL shell
-  orchcli exec postgres psql -U kubeorchestra -d kubeorchestra
-  
+  # Open MongoDB shell
+  orchcli exec mongodb mongosh kubeorchestra
+
   # Run migrations in Core
   orchcli exec core go run . migrate
-  
+
   # Open bash shell in UI container
   orchcli exec ui bash
-  
+
   # Check Node version in UI container
   orchcli exec ui node --version`,
 	Args: cobra.MinimumNArgs(1),
@@ -43,26 +43,33 @@ func runExec(cmd *cobra.Command, args []string) error {
 
 	service := args[0]
 	validServices := map[string]string{
-		"postgres": "kubeorchestra-postgres",
-		"core":     "kubeorchestra-core",
-		"ui":       "kubeorchestra-ui",
+		"mongodb": "kubeorchestra-mongodb",
+		"core":    "kubeorchestra-core",
+		"ui":      "kubeorchestra-ui",
 	}
 
 	containerName, valid := validServices[service]
 	if !valid {
-		return fmt.Errorf("invalid service: %s. Valid services: postgres, core, ui", service)
+		return fmt.Errorf("invalid service: %s. Valid services: mongodb, core, ui", service)
 	}
 
-	// Check if container is running
+	// Find the actual running container — name may have a -dev or -hybrid suffix
+	// depending on which orchcli init mode was used.
 	// #nosec G204 -- containerName is validated from a fixed allowlist above
 	checkCmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.Names}}")
 	output, err := checkCmd.Output()
-	if err != nil || strings.TrimSpace(string(output)) == "" {
+	// Take the first line only — docker ps may return multiple matches.
+	trimmed := strings.TrimSpace(string(output))
+	if idx := strings.IndexByte(trimmed, '\n'); idx != -1 {
+		trimmed = trimmed[:idx]
+	}
+	actualName := trimmed
+	if err != nil || actualName == "" {
 		return fmt.Errorf("service %s is not running. Start it with: orchcli start", service)
 	}
 
-	// Build docker exec command
-	dockerArgs := []string{"exec", "-it", containerName}
+	// Build docker exec command using the actual running container name
+	dockerArgs := []string{"exec", "-it", actualName}
 
 	if len(args) > 1 {
 		// Specific command provided
@@ -70,8 +77,8 @@ func runExec(cmd *cobra.Command, args []string) error {
 	} else {
 		// Default shells for each service
 		switch service {
-		case "postgres":
-			dockerArgs = append(dockerArgs, "psql", "-U", "kubeorchestra", "-d", "kubeorchestra")
+		case "mongodb":
+			dockerArgs = append(dockerArgs, "mongosh", "kubeorchestra")
 		case "core":
 			dockerArgs = append(dockerArgs, "sh")
 		case "ui":
@@ -80,10 +87,10 @@ func runExec(cmd *cobra.Command, args []string) error {
 	}
 
 	// #nosec G204 -- dockerArgs are constructed from validated inputs
-	execCmd := exec.Command("docker", dockerArgs...)
-	execCmd.Stdout = os.Stdout
-	execCmd.Stderr = os.Stderr
-	execCmd.Stdin = os.Stdin
+	execCommand := exec.Command("docker", dockerArgs...)
+	execCommand.Stdout = os.Stdout
+	execCommand.Stderr = os.Stderr
+	execCommand.Stdin = os.Stdin
 
-	return execCmd.Run()
+	return execCommand.Run()
 }

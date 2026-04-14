@@ -1,0 +1,33 @@
+version: '3.8'
+
+# Development mode - both UI and Core run on host
+# Only MongoDB runs in Docker
+
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: kubeorchestra-mongodb-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: kubeorchestra
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+# UI runs on host: cd ui && npm install && npm run dev (port 3001)
+# Core runs on host: cd core && air (port 3000)
+# Both connect to MongoDB at localhost:27017
+
+volumes:
+  mongodb_data:
+    name: kubeorchestra_mongodb_data_dev
+  mongodb_config:
+    name: kubeorchestra_mongodb_config_dev

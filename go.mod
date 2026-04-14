@@ -1,4 +1,4 @@
-module github.com/kubeorchestra/cli
+module github.com/kubeorch/cli
 
 go 1.22.2
 

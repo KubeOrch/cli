@@ -1,10 +1,87 @@
 package cmd
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 )
+
+const (
+	// dirPerm is the permission for directories created by orchcli (rwxr-x---).
+	dirPerm os.FileMode = 0750
+	// configFilePerm restricts config.yaml to owner-only since it contains secrets.
+	configFilePerm os.FileMode = 0600
+	// composeFilePerm allows group/world read for docker-compose files (no secrets).
+	composeFilePerm os.FileMode = 0644
+	// secretKeyBytes is the number of random bytes used for JWT/encryption keys.
+	secretKeyBytes = 32
+)
+
+// writeEmbeddedComposeFiles extracts all docker-compose files from the
+// embedded filesystem and writes them into the target directory.
+func writeEmbeddedComposeFiles(targetDir string) error {
+	entries, err := embeddedComposeFiles.ReadDir("docker")
+	if err != nil {
+		return fmt.Errorf("failed to read embedded compose files: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		data, err := embeddedComposeFiles.ReadFile("docker/" + entry.Name())
+		if err != nil {
+			return fmt.Errorf("failed to read embedded file %s: %w", entry.Name(), err)
+		}
+		dest := filepath.Join(targetDir, entry.Name())
+		// #nosec G306 -- compose files contain no secrets; world-readable is intentional
+		if err := os.WriteFile(dest, data, composeFilePerm); err != nil {
+			return fmt.Errorf("failed to write %s: %w", dest, err)
+		}
+	}
+	return nil
+}
+
+// generateRandomHex returns a cryptographically random hex string of the given byte length.
+func generateRandomHex(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// writeConfigYAML generates a config.yaml with random secrets at the given path.
+// Skips if the file already exists.
+func writeConfigYAML(targetPath string) error {
+	if _, err := os.Stat(targetPath); err == nil {
+		return nil // already exists, don't overwrite
+	}
+
+	content := strings.ReplaceAll(configTemplate, "{{JWT_SECRET}}", generateRandomHex(secretKeyBytes))
+	content = strings.ReplaceAll(content, "{{ENCRYPTION_KEY}}", generateRandomHex(secretKeyBytes))
+
+	if err := os.WriteFile(targetPath, []byte(content), configFilePerm); err != nil {
+		return fmt.Errorf("failed to write config.yaml: %w", err)
+	}
+	return nil
+}
+
+// writeEnvLocal generates a .env.local file at the given path.
+// Skips if the file already exists.
+func writeEnvLocal(targetPath string) error {
+	if _, err := os.Stat(targetPath); err == nil {
+		return nil // already exists, don't overwrite
+	}
+
+	// #nosec G306 -- .env.local contains only the API URL, no secrets; world-readable is intentional
+	if err := os.WriteFile(targetPath, []byte(envLocalTemplate), composeFilePerm); err != nil {
+		return fmt.Errorf("failed to write .env.local: %w", err)
+	}
+	return nil
+}
 
 func dirExists(path string) bool {
 	info, err := os.Stat(path)

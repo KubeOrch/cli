@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubeorchestra/cli/tests/helpers"
+	"github.com/kubeorch/cli/tests/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
