@@ -27,8 +27,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Ensure latest npm (OIDC requires npm 11.5.1+)
+        run: npm install -g npm@latest
 
       - name: Get version from tag
         id: version
@@ -131,5 +134,3 @@ jobs:
 
       - name: Publish to NPM
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ''
