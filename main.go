@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/kubeorchestra/cli/cmd"
+	"github.com/kubeorch/cli/cmd"
 )
 
 func main() {

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kubeorchestra/cli/cmd"
-	"github.com/kubeorchestra/cli/tests/helpers"
+	"github.com/kubeorch/cli/cmd"
+	"github.com/kubeorch/cli/tests/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -27,6 +27,12 @@ func (s *CommandTestSuite) SetupTest() {
 
 	s.tempDir = s.T().TempDir()
 	os.Chdir(s.tempDir)
+
+	// Clear global config between tests to prevent state leaks
+	// (e.g. CurrentProject fallback from a previous test).
+	if configPath, err := cmd.GetConfigPath(); err == nil {
+		os.Remove(configPath)
+	}
 
 	cmd.ResetCommands()
 }
@@ -58,31 +64,27 @@ func (s *CommandTestSuite) TestHelpCommand() {
 }
 
 func (s *CommandTestSuite) TestInitProductionMode() {
+	// Mock binaries go in a bin/ subdir so they don't conflict with the
+	// docker/ directory that orchcli init creates in the project CWD.
+	binDir := filepath.Join(s.tempDir, "bin")
+	os.MkdirAll(binDir, 0755)
 	if runtime.GOOS == "windows" {
-		// Create mock docker.bat and docker-compose.bat
-		helpers.CreateMockCommand(s.T(), s.tempDir,
+		helpers.CreateMockCommand(s.T(), binDir,
 			"docker", `echo Docker version 24.0.0`)
-		helpers.CreateMockCommand(s.T(), s.tempDir,
+		helpers.CreateMockCommand(s.T(), binDir,
 			"docker-compose", `echo Docker Compose version v2.20.0`)
 	} else {
-		mockScript := `#!/bin/sh
-echo "Docker Compose version v2.20.0"
-`
 		os.WriteFile(
-			filepath.Join(s.tempDir, "docker-compose"),
-			[]byte(mockScript), 0755,
+			filepath.Join(binDir, "docker-compose"),
+			[]byte("#!/bin/sh\necho 'Docker Compose version v2.20.0'\n"), 0755,
 		)
-		// Also mock docker itself
-		dockerMock := `#!/bin/sh
-echo "Docker version 24.0.0"
-`
 		os.WriteFile(
-			filepath.Join(s.tempDir, "docker"),
-			[]byte(dockerMock), 0755,
+			filepath.Join(binDir, "docker"),
+			[]byte("#!/bin/sh\necho 'Docker version 24.0.0'\n"), 0755,
 		)
 	}
 
-	helpers.MockPATH(s.tempDir)
+	helpers.MockPATH(binDir)
 
 	rootCmd := cmd.GetRootCommand()
 	output, err := cmd.ExecuteCommandC(rootCmd, "init", "--skip-deps")
@@ -234,27 +236,29 @@ func (s *CommandTestSuite) setupProductionProject() {
 	assert.NoError(s.T(), err)
 
 	os.MkdirAll(filepath.Join(s.tempDir, "docker"), 0755)
-	composeContent := "version: '3.8'\nservices:\n  core:\n" +
-		"    image: kubeorch/core:latest\n"
+	composeContent := "services:\n  core:\n" +
+		"    image: ghcr.io/kubeorch/core:latest\n"
 	os.WriteFile(
 		filepath.Join(s.tempDir, "docker/docker-compose.prod.yml"),
 		[]byte(composeContent), 0644,
 	)
 
+	// Mock binaries in bin/ subdir to avoid conflicting with docker/ project dir.
+	binDir := filepath.Join(s.tempDir, "bin")
+	os.MkdirAll(binDir, 0755)
+
 	if runtime.GOOS == "windows" {
-		helpers.CreateMockCommand(s.T(), s.tempDir, "docker",
+		helpers.CreateMockCommand(s.T(), binDir, "docker",
 			"echo mock-docker-output")
-		helpers.CreateMockCommand(s.T(), s.tempDir, "docker-compose",
+		helpers.CreateMockCommand(s.T(), binDir, "docker-compose",
 			"echo mock-compose-output")
 	} else {
-		dockerMock := "#!/bin/sh\necho mock-docker-output\n"
-		os.WriteFile(filepath.Join(s.tempDir, "docker"),
-			[]byte(dockerMock), 0755)
-		composeMock := "#!/bin/sh\necho mock-compose-output\n"
-		os.WriteFile(filepath.Join(s.tempDir, "docker-compose"),
-			[]byte(composeMock), 0755)
+		os.WriteFile(filepath.Join(binDir, "docker"),
+			[]byte("#!/bin/sh\necho mock-docker-output\n"), 0755)
+		os.WriteFile(filepath.Join(binDir, "docker-compose"),
+			[]byte("#!/bin/sh\necho mock-compose-output\n"), 0755)
 	}
-	helpers.MockPATH(s.tempDir)
+	helpers.MockPATH(binDir)
 }
 
 func (s *CommandTestSuite) TestStopCommand() {
@@ -321,8 +325,8 @@ func (s *CommandTestSuite) TestExecWithValidService() {
 	s.setupProductionProject()
 
 	rootCmd := cmd.GetRootCommand()
-	// postgres is a valid service name per the allowlist in exec.go
-	_, err := cmd.ExecuteCommandC(rootCmd, "exec", "postgres", "ls")
+	// mongodb is a valid service name per the allowlist in exec.go
+	_, err := cmd.ExecuteCommandC(rootCmd, "exec", "mongodb", "ls")
 
 	// May error because container isn't running, but should not
 	// error with "invalid service"

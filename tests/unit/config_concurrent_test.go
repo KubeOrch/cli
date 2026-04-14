@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/kubeorchestra/cli/cmd"
+	"github.com/kubeorch/cli/cmd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

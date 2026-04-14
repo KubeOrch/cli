@@ -86,12 +86,16 @@ func setupProduction() error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	const dirMode = 0750
 	dirs := []string{"docker", "scripts"}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, dirMode); err != nil {
+		if err := os.MkdirAll(dir, dirPerm); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
+	}
+
+	// Write embedded docker-compose files
+	if err := writeEmbeddedComposeFiles(filepath.Join(cwd, "docker")); err != nil {
+		return fmt.Errorf("failed to write docker-compose files: %w", err)
 	}
 
 	// Save project configuration
@@ -101,9 +105,9 @@ func setupProduction() error {
 
 	fmt.Println("\n✅ Production environment ready!")
 	fmt.Printf("📁 Project initialized at: %s\n", cwd)
-	fmt.Println("\n📝 Image tags that will be used:")
-	fmt.Println("   - ghcr.io/kubeorch/ui:latest")
+	fmt.Println("\n📝 Docker images that will be used:")
 	fmt.Println("   - ghcr.io/kubeorch/core:latest")
+	fmt.Println("   - ghcr.io/kubeorch/ui:latest")
 	fmt.Println("\n   You can specify versions with: orchcli start --version=v1.2.3")
 	fmt.Println("   Run 'orchcli start' to start services with latest images")
 	return nil
@@ -179,6 +183,15 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 		}
 	}
 
+	// Write embedded docker-compose files
+	dockerDir := filepath.Join(cwd, "docker")
+	if err := os.MkdirAll(dockerDir, dirPerm); err != nil {
+		return fmt.Errorf("failed to create docker directory: %w", err)
+	}
+	if err := writeEmbeddedComposeFiles(dockerDir); err != nil {
+		return fmt.Errorf("failed to write docker-compose files: %w", err)
+	}
+
 	// Setup upstreams for forks (sequential as they're quick)
 	if cloneUI && uiIsFork {
 		fmt.Println("🔗 Setting up upstream for UI fork...")
@@ -234,6 +247,25 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 					}
 				}
 			}
+		}
+	}
+
+	// Generate config files with sensible defaults
+	if cloneCore {
+		configPath := filepath.Join(corePath, "config.yaml")
+		if err := writeConfigYAML(configPath); err != nil {
+			fmt.Printf("⚠️  warning: failed to generate config.yaml: %v\n", err)
+		} else {
+			fmt.Println("✅ Generated core/config.yaml with default values")
+		}
+	}
+
+	if cloneUI {
+		envPath := filepath.Join(uiPath, ".env.local")
+		if err := writeEnvLocal(envPath); err != nil {
+			fmt.Printf("⚠️  warning: failed to generate .env.local: %v\n", err)
+		} else {
+			fmt.Println("✅ Generated ui/.env.local with default API URL")
 		}
 	}
 

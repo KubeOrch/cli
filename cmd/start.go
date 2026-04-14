@@ -92,12 +92,12 @@ func runStart(cmd *cobra.Command, args []string) error {
 		fmt.Println("✅ docker services started in background")
 		fmt.Println()
 
-		fmt.Println("⏳ waiting for postgres to be ready...")
-		if err := waitForPostgres(); err != nil {
+		fmt.Println("⏳ waiting for mongodb to be ready...")
+		if err := waitForMongoDB(); err != nil {
 			fmt.Printf("⚠️  warning: %v\n", err)
 			fmt.Println("   services may take a moment to be fully ready")
 		} else {
-			fmt.Println("✅ postgres is ready")
+			fmt.Println("✅ mongodb is ready")
 		}
 
 		fmt.Println()
@@ -111,14 +111,14 @@ func runStart(cmd *cobra.Command, args []string) error {
 			fmt.Println()
 			fmt.Println("   core will run on http://localhost:3000")
 			fmt.Println("   ui will run on http://localhost:3001")
-			fmt.Println("   postgresql is at localhost:5432")
+			fmt.Println("   mongodb is at localhost:27017")
 		case uiLocal:
 			fmt.Println("📝 next steps for ui development:")
 			fmt.Printf("   start ui: cd %s && npm run dev\n", projectConfig.UIPath)
 			fmt.Println()
 			fmt.Println("   ui will run on http://localhost:3001")
 			fmt.Println("   core api is at http://localhost:3000 (docker)")
-			fmt.Println("   postgresql is at localhost:5432 (docker)")
+			fmt.Println("   mongodb is at localhost:27017 (docker)")
 		case coreLocal:
 			fmt.Println("📝 backend development mode:")
 			fmt.Println("   ✅ core is running in docker with your code mounted")
@@ -126,14 +126,14 @@ func runStart(cmd *cobra.Command, args []string) error {
 			fmt.Println()
 			fmt.Println("   core api: http://localhost:3000 (docker with mounted code)")
 			fmt.Println("   ui: http://localhost:3001 (docker)")
-			fmt.Println("   postgresql: localhost:5432 (docker)")
+			fmt.Println("   mongodb: localhost:27017 (docker)")
 			fmt.Println()
 			fmt.Println("   note: no go installation required!")
 		default:
 			fmt.Println("📊 all services running in docker:")
 			fmt.Println("   ui: http://localhost:3001")
 			fmt.Println("   api: http://localhost:3000")
-			fmt.Println("   postgresql: localhost:5432")
+			fmt.Println("   mongodb: localhost:27017")
 		}
 
 		fmt.Println()
@@ -145,17 +145,18 @@ func runStart(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func waitForPostgres() error {
+func waitForMongoDB() error {
 	maxRetries := 30
 	containerNames := []string{
-		"kubeorchestra-postgres",
-		"kubeorchestra-postgres-dev",
-		"kubeorchestra-postgres-hybrid",
+		"kubeorchestra-mongodb",
+		"kubeorchestra-mongodb-dev",
+		"kubeorchestra-mongodb-hybrid",
 	}
 
 	for i := 0; i < maxRetries; i++ {
 		for _, name := range containerNames {
-			cmd := exec.Command("docker", "exec", name, "pg_isready", "-U", "kubeorchestra", "-d", "kubeorchestra")
+			// #nosec G204 -- name is from a hardcoded list of known container names
+			cmd := exec.Command("docker", "exec", name, "mongosh", "--eval", "db.adminCommand('ping')")
 			if err := cmd.Run(); err == nil {
 				return nil
 			}
@@ -164,5 +165,5 @@ func waitForPostgres() error {
 		_ = exec.Command("sleep", "1").Run()
 	}
 
-	return fmt.Errorf("postgres did not become ready in 30 seconds")
+	return fmt.Errorf("mongodb did not become ready in 30 seconds")
 }
