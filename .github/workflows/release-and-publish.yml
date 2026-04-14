@@ -5,12 +5,14 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   release-and-publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,12 +22,12 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Get version from tag
@@ -38,33 +40,27 @@ jobs:
 
       - name: Update package.json version
         run: |
-          # Update package.json with the version from tag
           sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
           echo "Updated package.json to version $VERSION"
           cat package.json | grep version
 
       - name: Build binaries for all platforms
         run: |
-          # Create dist directory
           mkdir -p dist
-          
-          # Extract version, commit, and build date
-          VERSION="${VERSION}"
+
           COMMIT=$(git rev-parse --short HEAD)
           BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          
-          # Build for all platforms with proper versioning
+
           echo "Building binaries for version $VERSION, commit $COMMIT"
-          
+
           LDFLAGS="-X github.com/kubeorch/cli/cmd.version=$VERSION -X github.com/kubeorch/cli/cmd.commit=$COMMIT -X github.com/kubeorch/cli/cmd.buildDate=$BUILD_DATE"
-          
+
           GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/orchcli_darwin_amd64 main.go
           GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/orchcli_darwin_arm64 main.go
           GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/orchcli_linux_amd64 main.go
           GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/orchcli_linux_arm64 main.go
           GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/orchcli_windows_amd64.exe main.go
-          
-          # Create checksums
+
           cd dist
           sha256sum * > checksums.txt
           echo "Checksums:"
@@ -72,81 +68,66 @@ jobs:
           cd ..
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true
           body: |
             ## OrchCLI ${{ steps.version.outputs.version }}
-            
+
             ### Installation
-            
+
             #### Via npm (Recommended)
             ```bash
             npm install -g @kubeorch/cli
             ```
-            
+
             #### Direct Download
             Download the appropriate binary for your platform from the assets below.
-            
+
             ##### Linux
             ```bash
             # For Linux x64
             curl -L https://github.com/KubeOrch/cli/releases/download/${{ github.ref_name }}/orchcli_linux_amd64 -o orchcli
             chmod +x orchcli
             sudo mv orchcli /usr/local/bin/
-            
+
             # For Linux ARM64
             curl -L https://github.com/KubeOrch/cli/releases/download/${{ github.ref_name }}/orchcli_linux_arm64 -o orchcli
             chmod +x orchcli
             sudo mv orchcli /usr/local/bin/
             ```
-            
+
             ##### macOS
             ```bash
             # For Intel Macs
             curl -L https://github.com/KubeOrch/cli/releases/download/${{ github.ref_name }}/orchcli_darwin_amd64 -o orchcli
             chmod +x orchcli
             sudo mv orchcli /usr/local/bin/
-            
+
             # For Apple Silicon (M1/M2/M3)
             curl -L https://github.com/KubeOrch/cli/releases/download/${{ github.ref_name }}/orchcli_darwin_arm64 -o orchcli
             chmod +x orchcli
             sudo mv orchcli /usr/local/bin/
             ```
-            
+
             ##### Windows
             Download `orchcli_windows_amd64.exe` and add it to your PATH.
-            
+
             ### Verify Installation
             ```bash
             orchcli --version
             ```
-            
+
             ### Checksums
             SHA256 checksums are available in `checksums.txt` to verify file integrity.
 
       - name: Prepare npm package
         run: |
-          # Ensure npm directories exist
           mkdir -p npm/bin
-          
-          # The wrapper script already exists, just ensure it's executable
           chmod +x npm/bin/orchcli || true
-          
-          # Show what will be published
           echo "Files to be published:"
           npm pack --dry-run
 
       - name: Publish to NPM
-        run: |
-          npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        continue-on-error: true  # Don't fail the whole workflow if npm publish fails
-
-      - name: Report NPM publish status
-        if: failure()
-        run: |
-          echo "::warning::NPM publish failed. You may need to publish manually or check NPM_TOKEN secret."
-          echo "To publish manually, run: npm publish --access public"
+        run: npm publish --provenance --access public
