@@ -141,6 +141,10 @@ orchcli start -d
 - [Publishing](docs/PUBLISHING.md) - NPM and GitHub release process
 - [Automated Release](docs/AUTOMATED-RELEASE.md) - CI/CD pipeline details
 
+## Contributing
+
+See the [contributing guide](https://github.com/KubeOrch/.github/blob/main/CONTRIBUTING.md).
+
 ## License
 
-Apache-2.0
+[Apache 2.0](LICENSE)
