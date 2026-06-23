@@ -11,17 +11,17 @@ OrchCLI is a command-line tool for developing with the KubeOrch platform. It str
 
 **macOS, Linux, WSL:**
 ```bash
-curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh
+curl -sfL https://kubeorch.dev/install.sh | sh
 ```
 
 **Windows PowerShell:**
 ```powershell
-irm https://raw.githubusercontent.com/KubeOrch/cli/main/install.ps1 | iex
+irm https://kubeorch.dev/install.ps1 | iex
 ```
 
 **Windows CMD:**
 ```batch
-curl -fsSL https://raw.githubusercontent.com/KubeOrch/cli/main/install.cmd -o install.cmd && install.cmd && del install.cmd
+curl -fsSL https://kubeorch.dev/install.cmd -o install.cmd && install.cmd && del install.cmd
 ```
 
 ### Via NPM
@@ -44,13 +44,13 @@ make install
 ### Advanced Options
 ```bash
 # Install specific version
-curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | ORCHCLI_VERSION=v0.0.5 sh
+curl -sfL https://kubeorch.dev/install.sh | ORCHCLI_VERSION=v0.0.5 sh
 
 # Install to custom directory
-curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | ORCHCLI_INSTALL_DIR=~/.local/bin sh
+curl -sfL https://kubeorch.dev/install.sh | ORCHCLI_INSTALL_DIR=~/.local/bin sh
 
 # Uninstall
-curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh -s -- --uninstall
+curl -sfL https://kubeorch.dev/install.sh | sh -s -- --uninstall
 ```
 
 ## Features

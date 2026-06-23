@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 REM OrchCLI Installation Script for Windows CMD
 REM Usage:
-REM   curl -fsSL https://raw.githubusercontent.com/KubeOrch/cli/main/install.cmd -o install.cmd && install.cmd && del install.cmd
+REM   curl -fsSL https://kubeorch.dev/install.cmd -o install.cmd && install.cmd && del install.cmd
 REM
 REM Environment variables:
 REM   - ORCHCLI_INSTALL_DIR: Installation directory (default: %LOCALAPPDATA%\Programs\orchcli)

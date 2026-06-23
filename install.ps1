@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 # OrchCLI Installation Script for Windows PowerShell
 # Usage:
-#   irm https://raw.githubusercontent.com/KubeOrch/cli/main/install.ps1 | iex
+#   irm https://kubeorch.dev/install.ps1 | iex
 #
 # Environment variables:
 #   - ORCHCLI_INSTALL_DIR: Installation directory (default: %LOCALAPPDATA%\Programs\orchcli)

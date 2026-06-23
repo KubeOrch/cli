@@ -3,8 +3,8 @@ set -e
 
 # OrchCLI Installation Script
 # Usage:
-#   curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh
-#   wget -qO- https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh
+#   curl -sfL https://kubeorch.dev/install.sh | sh
+#   wget -qO- https://kubeorch.dev/install.sh | sh
 #
 # Environment variables:
 #   - ORCHCLI_INSTALL_DIR: Installation directory (default: /usr/local/bin)

@@ -157,7 +157,7 @@ async function install() {
       console.error('\n===============================================');
       console.error('Failed to install OrchCLI automatically.');
       console.error('Please install manually:');
-      console.error(`  curl -sfL https://raw.githubusercontent.com/${REPO}/main/install.sh | sh`);
+      console.error('  curl -sfL https://kubeorch.dev/install.sh | sh');
       console.error('Or download from:');
       console.error(`  https://github.com/${REPO}/releases`);
       console.error('===============================================\n');
