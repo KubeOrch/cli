@@ -7,22 +7,21 @@ OrchCLI is a command-line tool for developing with the KubeOrch platform. It str
 
 ## Installation
 
-### Quick Install
+### Native Install (Recommended)
+
+**macOS, Linux, WSL:**
 ```bash
-# Install latest version
 curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh
+```
 
-# Or with wget
-wget -qO- https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh
+**Windows PowerShell:**
+```powershell
+irm https://raw.githubusercontent.com/KubeOrch/cli/main/install.ps1 | iex
+```
 
-# Install specific version
-curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | ORCHCLI_VERSION=v0.0.2 sh
-
-# Install to custom directory
-curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | ORCHCLI_INSTALL_DIR=~/.local/bin sh
-
-# Uninstall
-curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh -s -- --uninstall
+**Windows CMD:**
+```batch
+curl -fsSL https://raw.githubusercontent.com/KubeOrch/cli/main/install.cmd -o install.cmd && install.cmd && del install.cmd
 ```
 
 ### Via NPM
@@ -40,6 +39,18 @@ go install github.com/kubeorch/cli@latest
 git clone https://github.com/KubeOrch/cli
 cd cli
 make install
+```
+
+### Advanced Options
+```bash
+# Install specific version
+curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | ORCHCLI_VERSION=v0.0.5 sh
+
+# Install to custom directory
+curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | ORCHCLI_INSTALL_DIR=~/.local/bin sh
+
+# Uninstall
+curl -sfL https://raw.githubusercontent.com/KubeOrch/cli/main/install.sh | sh -s -- --uninstall
 ```
 
 ## Features

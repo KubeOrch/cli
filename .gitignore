@@ -5,7 +5,7 @@
 # Binary builds
 /bin/
 /dist/
-orchcli
+/orchcli
 *.exe
 *.exe~
 *.dll

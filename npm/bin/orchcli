@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+
+const { execFileSync } = require('child_process');
+const path = require('path');
+const os = require('os');
+
+const ext = os.platform() === 'win32' ? '.exe' : '';
+const binPath = path.join(__dirname, `orchcli-bin${ext}`);
+
+try {
+  execFileSync(binPath, process.argv.slice(2), { stdio: 'inherit' });
+} catch (error) {
+  if (error.status !== null) {
+    process.exit(error.status);
+  }
+  console.error(`Failed to run OrchCLI: ${error.message}`);
+  console.error(`Expected binary at: ${binPath}`);
+  console.error('Try reinstalling: npm install -g @kubeorch/cli');
+  process.exit(1);
+}
