@@ -42,8 +42,6 @@ function downloadBinary(url, dest) {
   return new Promise((resolve, reject) => {
     console.log(`Downloading OrchCLI binary from ${url}...`);
 
-    const file = fs.createWriteStream(dest);
-
     function followRedirects(currentUrl, redirectCount) {
       if (redirectCount > 5) {
         reject(new Error('Too many redirects'));
@@ -52,21 +50,23 @@ function downloadBinary(url, dest) {
 
       https.get(currentUrl, (response) => {
         if (response.statusCode === 302 || response.statusCode === 301) {
-          file.close();
+          response.resume();
           followRedirects(response.headers.location, redirectCount + 1);
         } else if (response.statusCode === 200) {
+          const file = fs.createWriteStream(dest);
           response.pipe(file);
           file.on('finish', () => {
             file.close(resolve);
           });
+          file.on('error', (err) => {
+            fs.unlink(dest, () => {});
+            reject(err);
+          });
         } else {
-          file.close();
+          response.resume();
           reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
         }
-      }).on('error', (err) => {
-        file.close();
-        reject(err);
-      });
+      }).on('error', reject);
     }
 
     followRedirects(url, 0);
