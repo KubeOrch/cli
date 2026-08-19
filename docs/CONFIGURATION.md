@@ -1,148 +1,79 @@
-# OrchCLI Configuration Management
+# OrchCLI Project Configuration
 
-## Overview
+## Canonical Project Marker
 
-OrchCLI uses a JSON-based configuration system to manage multiple projects and their settings. The configuration supports concurrent access through file locking to prevent data corruption.
+`orchcli init` writes `.kubeorch/project.json` in the project root. Lifecycle
+commands walk upward from the current working directory and use the nearest
+marker, so `orchcli start`, `stop`, `status`, `logs`, `restart`, `exec`, and
+`debug` work from the root or any directory below it.
 
-## Configuration Structure
-
-The configuration is stored in `orchcli-config.json` with the following structure:
+Example full-development marker:
 
 ```json
 {
-  "projects": {
-    "project-name": {
-      "path": "/path/to/project",
-      "ui_path": "/path/to/ui/repo",
-      "core_path": "/path/to/core/repo",
-      "mode": "development|production|hybrid-ui|hybrid-core"
-    }
-  },
-  "current_project": "project-name"
+  "version": 1,
+  "ui_path": "ui",
+  "core_path": "core",
+  "mode": "development"
 }
 ```
 
-## Configuration Location
+Paths inside the project are stored relative to the marker. Absolute paths are
+supported when a checkout lives outside the project root.
 
-The config file is stored in one of these locations (in order of preference):
-1. Same directory as the OrchCLI executable
-2. `~/.orchcli/` directory (fallback)
+## Initialization
 
-## Features
+Create a production-image project:
 
-### File Locking
-
-OrchCLI implements file locking using `github.com/gofrs/flock` to ensure safe concurrent access:
-- Prevents race conditions when multiple OrchCLI instances run simultaneously
-- Uses a `.lock` file alongside the config file
-- Automatically releases locks on completion or error
-
-### Project Management
-
-Each project configuration includes:
-- **path**: Root directory of the project
-- **ui_path**: Path to the UI repository (optional)
-- **core_path**: Path to the Core repository (optional)
-- **mode**: Development mode based on cloned repositories
-
-### Development Modes
-
-The mode is automatically determined based on cloned repositories:
-
-| Cloned Repos | Mode | Description |
-|--------------|------|-------------|
-| None | `production` | Uses Docker images for all services |
-| UI only | `hybrid-ui` | UI runs locally, backend in Docker |
-| Core only | `hybrid-core` | Core mounted in Docker, UI from image |
-| Both | `development` | Full local development |
-
-## Configuration API
-
-### Loading Configuration
-```go
-config, err := LoadConfig()
-```
-- Returns empty config if file doesn't exist
-- Automatically initializes empty projects map
-
-### Saving Configuration
-```go
-err := SaveConfig(config)
-```
-- Creates config directory if needed (mode 0750)
-- Uses file locking for concurrent safety
-- Writes formatted JSON with 2-space indentation
-
-### Getting/Setting Current Project
-```go
-// Get current project
-project := GetCurrentProjectConfig()
-
-// Set current project
-err := SetCurrentProject(projectName)
+```bash
+orchcli init
 ```
 
-### Managing Projects
-```go
-// Save project configuration
-err := SaveProjectConfig(projectName, projectPath, uiPath, corePath)
+Clone source repositories:
 
-// Remove project
-err := RemoveProjectConfig(projectName)
-
-// Get specific project
-project := GetProjectConfig(projectName)
+```bash
+orchcli init --fork-ui --fork-core
 ```
 
-## Directory Permissions
+Adopt existing source repositories without cloning or overwriting them:
 
-OrchCLI uses secure directory permissions:
-- Config directory: `0750` (rwxr-x---)
-- Config file: `0644` (rw-r--r--)
-- Lock file: Managed by flock library
+```bash
+orchcli init --ui-path ./ui --core-path ./core
+```
 
-## Error Handling
+Use `--skip-deps` when dependencies are already installed. Re-running either
+the production or existing-checkout form refreshes generated Compose files and
+the marker without overwriting `core/config.yaml` or `ui/.env.local`.
 
-The configuration system provides detailed error messages for:
-- Directory creation failures
-- File read/write errors
-- JSON parsing issues
-- Lock acquisition failures
-- Missing project configurations
+## Development Modes
 
-## Concurrent Access Safety
+| Source paths | Mode | Docker services | Host services |
+|---|---|---|---|
+| None | `production` | MongoDB, Core, UI | None |
+| UI only | `ui-dev` | MongoDB, Core | UI |
+| Core only | `core-dev` | MongoDB, UI | Core |
+| UI and Core | `development` | MongoDB | UI and Core |
 
-The file locking mechanism ensures:
-1. Only one process can write to config at a time
-2. Reads wait for writes to complete
-3. Automatic cleanup of lock files
-4. Graceful handling of stale locks
+## Legacy Registry
 
-## Best Practices
+Versions before the project marker stored `orchcli-config.json` beside the CLI
+executable. OrchCLI still reads a matching legacy entry when the current
+directory is inside that registered project. It never uses the old
+`current_project` value as a fallback for an unrelated directory. Re-run
+`orchcli init` in a legacy project to create the canonical marker.
 
-1. **Always use the provided API functions** - Don't directly modify the config file
-2. **Check for errors** - All config operations can fail and should be handled
-3. **Avoid long-running operations while holding config** - Load, modify, and save quickly
-4. **Use project-specific configs** - Store project settings within their respective config entries
+## Errors
+
+Marker errors identify the exact file and repair command. OrchCLI rejects
+invalid JSON, unsupported marker versions, mode/path mismatches, and configured
+source paths that no longer exist instead of silently selecting another mode.
 
 ## Testing
 
-The configuration system includes comprehensive tests:
-- Unit tests for all config operations
-- Concurrent access stress tests
-- File permission validation
-- Error condition handling
-
-Run tests with:
 ```bash
-go test ./tests/unit/config_test.go
-go test ./tests/unit/config_concurrent_test.go
+go test ./...
+docker compose -f cmd/docker/docker-compose.dev.yml config --quiet
+docker compose -f cmd/docker/docker-compose.prod.yml config --quiet
+docker compose -f cmd/docker/docker-compose.hybrid-ui.yml config --quiet
+docker compose -f cmd/docker/docker-compose.hybrid-core.yml config --quiet
 ```
-
-## Future Enhancements
-
-- Migration support for config schema changes
-- Backup and restore functionality
-- Config validation and schema enforcement
-- Environment-specific configurations
-- Config encryption for sensitive data

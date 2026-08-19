@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -31,17 +32,17 @@ func init() {
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
+	projectConfig, err := getCurrentProjectConfig()
+	if err != nil {
+		return fmt.Errorf("failed to resolve KubeOrch project: %w", err)
+	}
+
 	if err := validateDockerCompose(); err != nil {
 		return err
 	}
 
-	projectConfig, err := getCurrentProjectConfig()
-	if err != nil {
-		return fmt.Errorf("no project initialized in current directory. Run 'orchcli init' first")
-	}
-
-	uiLocal := projectConfig.UIPath != "" && dirExists(projectConfig.UIPath)
-	coreLocal := projectConfig.CorePath != "" && dirExists(projectConfig.CorePath)
+	uiLocal := projectConfig.UIPath != ""
+	coreLocal := projectConfig.CorePath != ""
 
 	fmt.Println("🚀 starting kubeorchestra services...")
 
@@ -106,10 +107,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 		switch {
 		case uiLocal && coreLocal:
 			fmt.Println("📝 next steps for development:")
-			fmt.Printf("   1. start core: cd %s && air\n", projectConfig.CorePath)
+			fmt.Printf("   1. start core: cd %s && go run .\n", projectConfig.CorePath)
 			fmt.Printf("   2. start ui: cd %s && npm run dev\n", projectConfig.UIPath)
 			fmt.Println()
-			fmt.Println("   core will run on http://localhost:3000")
+			fmt.Println("   core API will run on http://localhost:3000/v1/api")
 			fmt.Println("   ui will run on http://localhost:3001")
 			fmt.Println("   mongodb is at localhost:27017")
 		case uiLocal:
@@ -117,22 +118,19 @@ func runStart(cmd *cobra.Command, args []string) error {
 			fmt.Printf("   start ui: cd %s && npm run dev\n", projectConfig.UIPath)
 			fmt.Println()
 			fmt.Println("   ui will run on http://localhost:3001")
-			fmt.Println("   core api is at http://localhost:3000 (docker)")
+			fmt.Println("   core api is at http://localhost:3000/v1/api (docker)")
 			fmt.Println("   mongodb is at localhost:27017 (docker)")
 		case coreLocal:
-			fmt.Println("📝 backend development mode:")
-			fmt.Println("   ✅ core is running in docker with your code mounted")
-			fmt.Println("   ✅ hot reload enabled - just edit your files")
+			fmt.Println("📝 next steps for core development:")
+			fmt.Printf("   start core: cd %s && go run .\n", projectConfig.CorePath)
 			fmt.Println()
-			fmt.Println("   core api: http://localhost:3000 (docker with mounted code)")
+			fmt.Println("   core api: http://localhost:3000/v1/api (host)")
 			fmt.Println("   ui: http://localhost:3001 (docker)")
 			fmt.Println("   mongodb: localhost:27017 (docker)")
-			fmt.Println()
-			fmt.Println("   note: no go installation required!")
 		default:
 			fmt.Println("📊 all services running in docker:")
 			fmt.Println("   ui: http://localhost:3001")
-			fmt.Println("   api: http://localhost:3000")
+			fmt.Println("   api: http://localhost:3000/v1/api")
 			fmt.Println("   mongodb: localhost:27017")
 		}
 
@@ -162,7 +160,7 @@ func waitForMongoDB() error {
 			}
 		}
 
-		_ = exec.Command("sleep", "1").Run()
+		time.Sleep(time.Second)
 	}
 
 	return fmt.Errorf("mongodb did not become ready in 30 seconds")

@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -22,17 +24,17 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
+	projectConfig, err := getCurrentProjectConfig()
+	if err != nil {
+		return fmt.Errorf("failed to resolve KubeOrch project: %w", err)
+	}
+
 	if err := validateDockerCompose(); err != nil {
 		return err
 	}
 
-	projectConfig, err := getCurrentProjectConfig()
-	if err != nil {
-		return fmt.Errorf("no project initialized in current directory. Run 'orchcli init' first")
-	}
-
-	uiLocal := projectConfig.UIPath != "" && dirExists(projectConfig.UIPath)
-	coreLocal := projectConfig.CorePath != "" && dirExists(projectConfig.CorePath)
+	uiLocal := projectConfig.UIPath != ""
+	coreLocal := projectConfig.CorePath != ""
 
 	composeFile := getComposeFile(uiLocal, coreLocal)
 	composeFile = filepath.Join(projectConfig.Path, composeFile)
@@ -86,9 +88,47 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
+	fmt.Println("🩺 application status:")
+	checks := []struct {
+		name string
+		url  string
+	}{
+		{name: "core", url: "http://localhost:3000/v1/"},
+		{name: "ui", url: "http://localhost:3001/"},
+	}
+	type healthResult struct {
+		name       string
+		statusCode int
+		err        error
+	}
+	results := make(chan healthResult, len(checks))
+	for _, check := range checks {
+		go func(name, url string) {
+			client := &http.Client{Timeout: 2 * time.Second}
+			response, requestErr := client.Get(url)
+			if requestErr != nil {
+				results <- healthResult{name: name, err: requestErr}
+				return
+			}
+			defer response.Body.Close()
+			results <- healthResult{name: name, statusCode: response.StatusCode}
+		}(check.name, check.url)
+	}
+	for range checks {
+		result := <-results
+		if result.err != nil {
+			fmt.Printf("   ❌ %s is not reachable: %v\n", result.name, result.err)
+		} else if result.statusCode >= http.StatusOK && result.statusCode < http.StatusBadRequest {
+			fmt.Printf("   ✅ %s is healthy (HTTP %d)\n", result.name, result.statusCode)
+		} else {
+			fmt.Printf("   ⚠️  %s returned HTTP %d\n", result.name, result.statusCode)
+		}
+	}
+
+	fmt.Println()
 	fmt.Println("🌐 service endpoints:")
 	fmt.Println("   ui:      http://localhost:3001")
-	fmt.Println("   api:     http://localhost:3000")
+	fmt.Println("   api:     http://localhost:3000/v1/api")
 	fmt.Println("   mongodb: localhost:27017")
 
 	fmt.Println()

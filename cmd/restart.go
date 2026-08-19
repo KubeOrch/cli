@@ -12,7 +12,7 @@ import (
 var restartCmd = &cobra.Command{
 	Use:   "restart [service]",
 	Short: "Restart KubeOrch services",
-	Long:  `Restart KubeOrch services. Optionally specify a service name (ui, core, postgres)`,
+	Long:  `Restart KubeOrch services. Optionally specify a service name (ui, core, mongodb)`,
 	RunE:  runRestart,
 }
 
@@ -21,17 +21,17 @@ func init() {
 }
 
 func runRestart(cmd *cobra.Command, args []string) error {
+	projectConfig, err := getCurrentProjectConfig()
+	if err != nil {
+		return fmt.Errorf("failed to resolve KubeOrch project: %w", err)
+	}
+
 	if err := validateDockerCompose(); err != nil {
 		return err
 	}
 
-	projectConfig, err := getCurrentProjectConfig()
-	if err != nil {
-		return fmt.Errorf("no project initialized in current directory. Run 'orchcli init' first")
-	}
-
-	uiLocal := projectConfig.UIPath != "" && dirExists(projectConfig.UIPath)
-	coreLocal := projectConfig.CorePath != "" && dirExists(projectConfig.CorePath)
+	uiLocal := projectConfig.UIPath != ""
+	coreLocal := projectConfig.CorePath != ""
 
 	fmt.Println("🔄 restarting kubeorchestra services...")
 

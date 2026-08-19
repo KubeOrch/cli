@@ -22,7 +22,7 @@ It helps developers:
 - Clone and setup UI/Core repositories for development  
 - Run local development environment with hot reload
 - Handle fork-based contributions for external developers
-- Quick production environment setup with latest images`,
+- Quick production environment setup with pinned images`,
 	Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, buildDate),
 }
 

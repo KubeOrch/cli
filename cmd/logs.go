@@ -19,7 +19,7 @@ var (
 var logsCmd = &cobra.Command{
 	Use:   "logs [service]",
 	Short: "View logs from KubeOrch services",
-	Long:  `View logs from running KubeOrch services. Optionally specify a service name (ui, core, postgres)`,
+	Long:  `View logs from running KubeOrch services. Optionally specify a service name (ui, core, mongodb)`,
 	RunE:  runLogs,
 }
 
@@ -27,22 +27,22 @@ func init() {
 	logsCmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow log output")
 	logsCmd.Flags().StringVar(&tailLines, "tail", "100", "number of lines to show from the end of logs")
 	logsCmd.Flags().BoolVarP(&timestamps, "timestamps", "t", false, "show timestamps")
-	logsCmd.Flags().StringVar(&service, "service", "", "specific service to show logs for (ui, core, postgres)")
+	logsCmd.Flags().StringVar(&service, "service", "", "specific service to show logs for (ui, core, mongodb)")
 	rootCmd.AddCommand(logsCmd)
 }
 
 func runLogs(cmd *cobra.Command, args []string) error {
+	projectConfig, err := getCurrentProjectConfig()
+	if err != nil {
+		return fmt.Errorf("failed to resolve KubeOrch project: %w", err)
+	}
+
 	if err := validateDockerCompose(); err != nil {
 		return err
 	}
 
-	projectConfig, err := getCurrentProjectConfig()
-	if err != nil {
-		return fmt.Errorf("no project initialized in current directory. Run 'orchcli init' first")
-	}
-
-	uiLocal := projectConfig.UIPath != "" && dirExists(projectConfig.UIPath)
-	coreLocal := projectConfig.CorePath != "" && dirExists(projectConfig.CorePath)
+	uiLocal := projectConfig.UIPath != ""
+	coreLocal := projectConfig.CorePath != ""
 
 	composeFile := getComposeFile(uiLocal, coreLocal)
 	composeFile = filepath.Join(projectConfig.Path, composeFile)

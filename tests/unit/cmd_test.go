@@ -15,8 +15,8 @@ import (
 
 type CommandTestSuite struct {
 	suite.Suite
-	origDir string
-	tempDir string
+	origDir  string
+	tempDir  string
 	origPATH string
 }
 
@@ -96,11 +96,8 @@ func (s *CommandTestSuite) TestInitProductionMode() {
 
 	assert.DirExists(s.T(), filepath.Join(s.tempDir, "docker"))
 	assert.DirExists(s.T(), filepath.Join(s.tempDir, "scripts"))
+	assert.FileExists(s.T(), filepath.Join(s.tempDir, ".kubeorch", "project.json"))
 
-	config, err := cmd.LoadConfig()
-	assert.NoError(s.T(), err)
-	assert.NotNil(s.T(), config.Projects[s.tempDir])
-	assert.Equal(s.T(), "production", config.Projects[s.tempDir].Mode)
 }
 
 func (s *CommandTestSuite) TestInitWithInvalidFork() {
@@ -119,13 +116,20 @@ func (s *CommandTestSuite) TestStartWithMissingComposeFile() {
 	assert.Error(s.T(), err)
 	errMsg := err.Error()
 	assert.True(s.T(),
-		strings.Contains(errMsg, "no project initialized") ||
+		strings.Contains(errMsg, "project marker not found") ||
 			strings.Contains(errMsg, "compose file") ||
 			strings.Contains(errMsg, "docker"),
 		"unexpected error: %s", errMsg)
 }
 
 func (s *CommandTestSuite) TestDebugCommand() {
+	config := &cmd.OrchConfig{
+		Projects: map[string]*cmd.ProjectConfig{
+			s.tempDir: {Path: s.tempDir, Mode: "production"},
+		},
+	}
+	assert.NoError(s.T(), cmd.SaveConfig(config))
+
 	if runtime.GOOS == "windows" {
 		helpers.CreateMockCommand(s.T(), s.tempDir, "docker",
 			`echo NETWORK ID     NAME                DRIVER    SCOPE`)

@@ -17,10 +17,12 @@ const (
 )
 
 var (
-	forkUI      string
-	forkCore    string
-	skipDeps    bool
-	autoInstall bool
+	forkUI           string
+	forkCore         string
+	existingUIPath   string
+	existingCorePath string
+	skipDeps         bool
+	autoInstall      bool
 )
 
 var initCmd = &cobra.Command{
@@ -30,6 +32,7 @@ var initCmd = &cobra.Command{
 
 Without flags: Sets up for production testing using Docker images (no repos cloned).
 With --fork-ui or --fork-core: Clones repositories for development.
+With --ui-path or --core-path: Uses an existing local checkout.
 
 Examples:
   # Production setup (uses Docker images only)
@@ -45,13 +48,18 @@ Examples:
   orchcli init --fork-ui=
   
   # Clone only Core for backend development
-  orchcli init --fork-core=`,
+  orchcli init --fork-core=
+
+  # Use existing checkouts without cloning them
+  orchcli init --ui-path ./ui --core-path ./core`,
 	RunE: runInit,
 }
 
 func init() {
 	initCmd.Flags().StringVar(&forkUI, "fork-ui", "", "Clone UI repository (use --fork-ui= for official, or --fork-ui=username/repo for fork)")
 	initCmd.Flags().StringVar(&forkCore, "fork-core", "", "Clone Core repository (use --fork-core= for official, or --fork-core=username/repo for fork)")
+	initCmd.Flags().StringVar(&existingUIPath, "ui-path", "", "Use an existing UI checkout instead of cloning")
+	initCmd.Flags().StringVar(&existingCorePath, "core-path", "", "Use an existing Core checkout instead of cloning")
 	initCmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency installation")
 	initCmd.Flags().BoolVar(&autoInstall, "auto-install", true, "Automatically install missing dependencies (npm, go)")
 
@@ -62,14 +70,23 @@ func init() {
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
-	uiSet := cmd.Flags().Changed("fork-ui")
-	coreSet := cmd.Flags().Changed("fork-core")
+	cloneUI := cmd.Flags().Changed("fork-ui")
+	cloneCore := cmd.Flags().Changed("fork-core")
+	useExistingUI := cmd.Flags().Changed("ui-path")
+	useExistingCore := cmd.Flags().Changed("core-path")
 
-	if !uiSet && !coreSet {
+	if cloneUI && useExistingUI {
+		return fmt.Errorf("--fork-ui and --ui-path cannot be used together")
+	}
+	if cloneCore && useExistingCore {
+		return fmt.Errorf("--fork-core and --core-path cannot be used together")
+	}
+
+	if !cloneUI && !cloneCore && !useExistingUI && !useExistingCore {
 		return setupProduction()
 	}
 
-	return setupDevelopment(uiSet, coreSet)
+	return setupDevelopment(cloneUI, cloneCore, useExistingUI, useExistingCore)
 }
 
 func setupProduction() error {
@@ -98,22 +115,21 @@ func setupProduction() error {
 		return fmt.Errorf("failed to write docker-compose files: %w", err)
 	}
 
-	// Save project configuration
+	// Save the canonical project marker.
 	if err := setProjectConfig(cwd, "", ""); err != nil {
-		fmt.Printf("⚠️  warning: failed to save project configuration: %v\n", err)
+		return fmt.Errorf("failed to save project configuration: %w", err)
 	}
 
 	fmt.Println("\n✅ Production environment ready!")
 	fmt.Printf("📁 Project initialized at: %s\n", cwd)
 	fmt.Println("\n📝 Docker images that will be used:")
-	fmt.Println("   - ghcr.io/kubeorch/core:latest")
-	fmt.Println("   - ghcr.io/kubeorch/ui:latest")
-	fmt.Println("\n   You can specify versions with: orchcli start --version=v1.2.3")
-	fmt.Println("   Run 'orchcli start' to start services with latest images")
+	fmt.Println("   - ghcr.io/kubeorch/core:v0.0.3 (digest pinned)")
+	fmt.Println("   - ghcr.io/kubeorch/ui:v0.0.3 (digest pinned)")
+	fmt.Println("\n   Run 'orchcli start' to start the pinned release images")
 	return nil
 }
 
-func setupDevelopment(cloneUI, cloneCore bool) error {
+func setupDevelopment(cloneUI, cloneCore, useExistingUI, useExistingCore bool) error {
 	fmt.Println("🔧 Setting up OrchCLI for development")
 
 	cwd, err := os.Getwd()
@@ -136,6 +152,24 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 		return err
 	}
 
+	hasUI := cloneUI || useExistingUI
+	hasCore := cloneCore || useExistingCore
+
+	var uiPath string
+	if useExistingUI {
+		uiPath, err = resolveExistingCheckout(cwd, existingUIPath, "UI", "package.json")
+		if err != nil {
+			return err
+		}
+	}
+	var corePath string
+	if useExistingCore {
+		corePath, err = resolveExistingCheckout(cwd, existingCorePath, "Core", "go.mod")
+		if err != nil {
+			return err
+		}
+	}
+
 	// Prepare tasks for concurrent execution
 	var cloneTasks []Task
 
@@ -146,7 +180,6 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	// UI cloning task
 	var uiRepoURL string
 	var uiIsFork bool
-	var uiPath string
 	if cloneUI {
 		uiRepoURL, uiIsFork = determineRepoURL(forkUI, defaultUIRepo)
 		uiPath = filepath.Join(cwd, "ui")
@@ -162,7 +195,6 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	// Core cloning task
 	var coreRepoURL string
 	var coreIsFork bool
-	var corePath string
 	if cloneCore {
 		coreRepoURL, coreIsFork = determineRepoURL(forkCore, defaultCoreRepo)
 		corePath = filepath.Join(cwd, "core")
@@ -211,7 +243,7 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	if !skipDeps {
 		var depTasks []Task
 
-		if cloneUI {
+		if hasUI {
 			depTasks = append(depTasks, Task{
 				Action: func() error {
 					return installUIDependencies(uiPath)
@@ -221,7 +253,7 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 			})
 		}
 
-		if cloneCore {
+		if hasCore {
 			depTasks = append(depTasks, Task{
 				Action: func() error {
 					return installCoreDependencies(corePath)
@@ -251,27 +283,35 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	}
 
 	// Generate config files with sensible defaults
-	if cloneCore {
+	if hasCore {
 		configPath := filepath.Join(corePath, "config.yaml")
+		_, statErr := os.Stat(configPath)
+		configExists := statErr == nil
 		if err := writeConfigYAML(configPath); err != nil {
 			fmt.Printf("⚠️  warning: failed to generate config.yaml: %v\n", err)
+		} else if configExists {
+			fmt.Println("✅ Using existing core/config.yaml")
 		} else {
 			fmt.Println("✅ Generated core/config.yaml with default values")
 		}
 	}
 
-	if cloneUI {
+	if hasUI {
 		envPath := filepath.Join(uiPath, ".env.local")
+		_, statErr := os.Stat(envPath)
+		envExists := statErr == nil
 		if err := writeEnvLocal(envPath); err != nil {
 			fmt.Printf("⚠️  warning: failed to generate .env.local: %v\n", err)
+		} else if envExists {
+			fmt.Println("✅ Using existing ui/.env.local")
 		} else {
 			fmt.Println("✅ Generated ui/.env.local with default API URL")
 		}
 	}
 
-	// Save project configuration
+	// Save the canonical project marker.
 	if err := setProjectConfig(cwd, uiPath, corePath); err != nil {
-		fmt.Printf("⚠️  warning: failed to save project configuration: %v\n", err)
+		return fmt.Errorf("failed to save project configuration: %w", err)
 	}
 
 	fmt.Println("\n✅ Development environment ready!")
@@ -279,16 +319,16 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 	fmt.Println("\n📝 Next steps:")
 
 	switch {
-	case cloneUI && cloneCore:
+	case hasUI && hasCore:
 		fmt.Println("   1. Run 'orchcli start' to start both UI and Core locally")
-	case cloneUI:
+	case hasUI:
 		fmt.Println("   1. Run 'orchcli start' to start UI locally with Core from Docker")
-	case cloneCore:
+	case hasCore:
 		fmt.Println("   1. Run 'orchcli start' to start Core locally with UI from Docker")
 	}
 
-	fmt.Println("   2. Make your changes in the cloned repositories")
-	fmt.Println("   3. Changes will hot-reload automatically")
+	fmt.Println("   2. Make your changes in the source repositories")
+	fmt.Println("   3. UI changes hot-reload; restart a host Core process after Core changes")
 
 	usingForks := (forkUI != "" && forkUI != defaultUIRepo) ||
 		(forkCore != "" && forkCore != defaultCoreRepo)
@@ -298,13 +338,35 @@ func setupDevelopment(cloneUI, cloneCore bool) error {
 		fmt.Println("   1. Create a feature branch: git checkout -b feature/my-feature")
 		fmt.Println("   2. Push to your fork: git push origin feature/my-feature")
 		fmt.Println("   3. Create a pull request on GitHub")
-	} else if cloneUI || cloneCore {
+	} else if hasUI || hasCore {
 		fmt.Println("\n👥 Official repo workflow (Team Member):")
 		fmt.Println("   1. Create a feature branch or work on main")
 		fmt.Println("   2. Push directly: git push origin <branch>")
 	}
 
 	return nil
+}
+
+func resolveExistingCheckout(projectPath, sourcePath, component, markerFile string) (string, error) {
+	if strings.TrimSpace(sourcePath) == "" {
+		return "", fmt.Errorf("--%s-path requires a directory", strings.ToLower(component))
+	}
+	if !filepath.IsAbs(sourcePath) {
+		sourcePath = filepath.Join(projectPath, sourcePath)
+	}
+	absPath, err := filepath.Abs(sourcePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve %s checkout %q: %w", component, sourcePath, err)
+	}
+	absPath = filepath.Clean(absPath)
+	if !dirExists(absPath) {
+		return "", fmt.Errorf("%s checkout does not exist or is not a directory: %s", component, absPath)
+	}
+	info, statErr := os.Stat(filepath.Join(absPath, markerFile))
+	if statErr != nil || info.IsDir() {
+		return "", fmt.Errorf("%s checkout at %s is missing %s", component, absPath, markerFile)
+	}
+	return absPath, nil
 }
 
 func determineRepoURL(repoName, defaultRepo string) (string, bool) {

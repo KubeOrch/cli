@@ -89,7 +89,7 @@ RunConcurrentTasks(tasks)
 Starting services runs health checks concurrently:
 ```go
 tasks := []Task{
-    {Name: "Checking PostgreSQL", Action: checkPostgres},
+    {Name: "Checking MongoDB", Action: checkMongoDB},
     {Name: "Checking Core API", Action: checkCore},
     {Name: "Checking UI", Action: checkUI},
 }

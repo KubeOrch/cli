@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 )
 
 const (
@@ -271,6 +273,27 @@ func getDockerComposeCommand() []string {
 }
 
 func startDockerDaemon() error {
+	if runtime.GOOS == "windows" {
+		candidates := []string{
+			filepath.Join(os.Getenv("ProgramFiles"), "Docker", "Docker", "Docker Desktop.exe"),
+			filepath.Join(os.Getenv("LOCALAPPDATA"), "Docker", "Docker Desktop.exe"),
+		}
+		for _, dockerDesktop := range candidates {
+			if dockerDesktop == "" {
+				continue
+			}
+			if _, err := os.Stat(dockerDesktop); err != nil {
+				continue
+			}
+			fmt.Println("   opening docker desktop...")
+			if err := exec.Command(dockerDesktop).Start(); err != nil {
+				return fmt.Errorf("failed to open Docker Desktop: %w", err)
+			}
+			return waitForDockerDaemon(60)
+		}
+		return fmt.Errorf("Docker Desktop executable was not found")
+	}
+
 	if err := checkCommand("systemctl", "--version"); err == nil {
 		fmt.Println("   starting docker with systemctl...")
 		startCmd := exec.Command("systemctl", "start", "docker")
@@ -295,16 +318,20 @@ func startDockerDaemon() error {
 	if _, err := exec.LookPath("open"); err == nil {
 		fmt.Println("   opening docker desktop...")
 		if err := exec.Command("open", "-a", "Docker").Run(); err == nil {
-			fmt.Println("   waiting for docker to start...")
-			for i := 0; i < 30; i++ {
-				if err := checkCommand("docker", "info"); err == nil {
-					return nil
-				}
-				_ = exec.Command("sleep", "1").Run()
-			}
-			return fmt.Errorf("docker desktop did not start in time")
+			return waitForDockerDaemon(60)
 		}
 	}
 
 	return fmt.Errorf("unable to start docker daemon automatically")
+}
+
+func waitForDockerDaemon(maxSeconds int) error {
+	fmt.Println("   waiting for docker to start...")
+	for i := 0; i < maxSeconds; i++ {
+		if err := checkCommand("docker", "info"); err == nil {
+			return nil
+		}
+		time.Sleep(time.Second)
+	}
+	return fmt.Errorf("docker desktop did not start within %d seconds", maxSeconds)
 }
