@@ -129,12 +129,48 @@ func setupProduction() error {
 	return nil
 }
 
+type developmentSetup struct {
+	projectPath string
+	uiPath      string
+	corePath    string
+	uiRepoURL   string
+	coreRepoURL string
+	cloneUI     bool
+	cloneCore   bool
+	uiIsFork    bool
+	coreIsFork  bool
+}
+
 func setupDevelopment(cloneUI, cloneCore, useExistingUI, useExistingCore bool) error {
 	fmt.Println("🔧 Setting up OrchCLI for development")
 
-	cwd, err := os.Getwd()
+	setup, err := prepareDevelopmentSetup(cloneUI, cloneCore, useExistingUI, useExistingCore)
 	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
+		return err
+	}
+	if err := setup.cloneRepositories(); err != nil {
+		return err
+	}
+	if err := writeDevelopmentComposeFiles(setup.projectPath); err != nil {
+		return err
+	}
+	if err := setup.configureUpstreams(); err != nil {
+		return err
+	}
+	setup.installDependencies()
+	setup.generateConfigFiles()
+
+	if err := setProjectConfig(setup.projectPath, setup.uiPath, setup.corePath); err != nil {
+		return fmt.Errorf("failed to save project configuration: %w", err)
+	}
+	setup.printSummary()
+	return nil
+}
+
+func prepareDevelopmentSetup(cloneUI, cloneCore, useExistingUI, useExistingCore bool) (*developmentSetup, error) {
+	projectPath, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 
 	if cloneUI && forkUI == "" {
@@ -143,208 +179,202 @@ func setupDevelopment(cloneUI, cloneCore, useExistingUI, useExistingCore bool) e
 	if cloneCore && forkCore == "" {
 		forkCore = defaultCoreRepo
 	}
-
-	if err := checkPrerequisites(); err != nil {
-		return err
+	if prerequisiteErr := checkPrerequisites(cloneUI || cloneCore); prerequisiteErr != nil {
+		return nil, prerequisiteErr
+	}
+	if validationErr := validateAndCheckDirs(cloneUI, cloneCore); validationErr != nil {
+		return nil, validationErr
 	}
 
-	if err := validateAndCheckDirs(cloneUI, cloneCore); err != nil {
-		return err
-	}
-
-	hasUI := cloneUI || useExistingUI
-	hasCore := cloneCore || useExistingCore
-
-	var uiPath string
+	setup := &developmentSetup{projectPath: projectPath, cloneUI: cloneUI, cloneCore: cloneCore}
 	if useExistingUI {
-		uiPath, err = resolveExistingCheckout(cwd, existingUIPath, "UI", "package.json")
+		setup.uiPath, err = resolveExistingCheckout(projectPath, existingUIPath, "UI", "package.json")
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	var corePath string
 	if useExistingCore {
-		corePath, err = resolveExistingCheckout(cwd, existingCorePath, "Core", "go.mod")
+		setup.corePath, err = resolveExistingCheckout(projectPath, existingCorePath, "Core", "go.mod")
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
+	if cloneUI {
+		setup.uiRepoURL, setup.uiIsFork = determineRepoURL(forkUI, defaultUIRepo)
+		setup.uiPath = filepath.Join(projectPath, "ui")
+	}
+	if cloneCore {
+		setup.coreRepoURL, setup.coreIsFork = determineRepoURL(forkCore, defaultCoreRepo)
+		setup.corePath = filepath.Join(projectPath, "core")
+	}
+	return setup, nil
+}
 
-	// Prepare tasks for concurrent execution
-	var cloneTasks []Task
+func (setup *developmentSetup) hasUI() bool {
+	return setup.uiPath != ""
+}
 
-	if cloneUI && cloneCore {
+func (setup *developmentSetup) hasCore() bool {
+	return setup.corePath != ""
+}
+
+func (setup *developmentSetup) cloneRepositories() error {
+	var tasks []Task
+	if setup.cloneUI && setup.cloneCore {
 		fmt.Println("📦 Cloning repositories concurrently...")
 	}
-
-	// UI cloning task
-	var uiRepoURL string
-	var uiIsFork bool
-	if cloneUI {
-		uiRepoURL, uiIsFork = determineRepoURL(forkUI, defaultUIRepo)
-		uiPath = filepath.Join(cwd, "ui")
-		cloneTasks = append(cloneTasks, Task{
-			Action: func() error {
-				return cloneRepo(uiRepoURL, uiPath)
-			},
-			Progress: NewProgressBar(fmt.Sprintf("Cloning UI from %s", uiRepoURL)),
+	if setup.cloneUI {
+		tasks = append(tasks, Task{
+			Action:   func() error { return cloneRepo(setup.uiRepoURL, setup.uiPath) },
+			Progress: NewProgressBar(fmt.Sprintf("Cloning UI from %s", setup.uiRepoURL)),
 			Name:     "Clone UI repository",
 		})
 	}
-
-	// Core cloning task
-	var coreRepoURL string
-	var coreIsFork bool
-	if cloneCore {
-		coreRepoURL, coreIsFork = determineRepoURL(forkCore, defaultCoreRepo)
-		corePath = filepath.Join(cwd, "core")
-		cloneTasks = append(cloneTasks, Task{
-			Action: func() error {
-				return cloneRepo(coreRepoURL, corePath)
-			},
-			Progress: NewProgressBar(fmt.Sprintf("Cloning Core from %s", coreRepoURL)),
+	if setup.cloneCore {
+		tasks = append(tasks, Task{
+			Action:   func() error { return cloneRepo(setup.coreRepoURL, setup.corePath) },
+			Progress: NewProgressBar(fmt.Sprintf("Cloning Core from %s", setup.coreRepoURL)),
 			Name:     "Clone Core repository",
 		})
 	}
-
-	// Execute cloning tasks concurrently
-	if len(cloneTasks) > 0 {
-		results := RunConcurrent(cloneTasks)
-		if err := AggregateErrors(results); err != nil {
-			return err
-		}
+	if len(tasks) == 0 {
+		return nil
 	}
+	return AggregateErrors(RunConcurrent(tasks))
+}
 
-	// Write embedded docker-compose files
-	dockerDir := filepath.Join(cwd, "docker")
+func writeDevelopmentComposeFiles(projectPath string) error {
+	dockerDir := filepath.Join(projectPath, "docker")
 	if err := os.MkdirAll(dockerDir, dirPerm); err != nil {
 		return fmt.Errorf("failed to create docker directory: %w", err)
 	}
 	if err := writeEmbeddedComposeFiles(dockerDir); err != nil {
 		return fmt.Errorf("failed to write docker-compose files: %w", err)
 	}
+	return nil
+}
 
-	// Setup upstreams for forks (sequential as they're quick)
-	if cloneUI && uiIsFork {
+func (setup *developmentSetup) configureUpstreams() error {
+	if setup.cloneUI && setup.uiIsFork {
 		fmt.Println("🔗 Setting up upstream for UI fork...")
-		if err := setupUpstream(uiPath, "https://github.com/"+defaultUIRepo); err != nil {
+		if err := setupUpstream(setup.uiPath, "https://github.com/"+defaultUIRepo); err != nil {
 			return fmt.Errorf("failed to setup upstream for UI: %w", err)
 		}
 	}
-
-	if cloneCore && coreIsFork {
+	if setup.cloneCore && setup.coreIsFork {
 		fmt.Println("🔗 Setting up upstream for Core fork...")
-		if err := setupUpstream(corePath, "https://github.com/"+defaultCoreRepo); err != nil {
+		if err := setupUpstream(setup.corePath, "https://github.com/"+defaultCoreRepo); err != nil {
 			return fmt.Errorf("failed to setup upstream for Core: %w", err)
 		}
 	}
+	return nil
+}
 
-	// Install dependencies concurrently
-	if !skipDeps {
-		var depTasks []Task
-
-		if hasUI {
-			depTasks = append(depTasks, Task{
-				Action: func() error {
-					return installUIDependencies(uiPath)
-				},
-				Progress: NewProgressBar("Installing UI dependencies (npm install)"),
-				Name:     "Install UI dependencies",
-			})
-		}
-
-		if hasCore {
-			depTasks = append(depTasks, Task{
-				Action: func() error {
-					return installCoreDependencies(corePath)
-				},
-				Progress: NewProgressBar("Downloading Core dependencies (go mod download)"),
-				Name:     "Download Core dependencies",
-			})
-		}
-
-		if len(depTasks) > 0 {
-			fmt.Println("\n📥 Installing dependencies concurrently...")
-			results := RunConcurrent(depTasks)
-
-			// Show warnings for failed dependencies but don't fail
-			for _, result := range results {
-				if result.Error != nil {
-					if result.Name == "Install UI dependencies" {
-						fmt.Printf("⚠️  warning: failed to install ui dependencies: %v\n", result.Error)
-						fmt.Printf("   you can install them manually with: cd %s && npm install\n", uiPath)
-					} else if result.Name == "Download Core dependencies" {
-						fmt.Printf("⚠️  warning: failed to download core dependencies: %v\n", result.Error)
-						fmt.Printf("   you can download them manually with: cd %s && go mod download\n", corePath)
-					}
-				}
-			}
-		}
+func (setup *developmentSetup) installDependencies() {
+	if skipDeps {
+		return
 	}
 
-	// Generate config files with sensible defaults
-	if hasCore {
-		configPath := filepath.Join(corePath, "config.yaml")
-		_, statErr := os.Stat(configPath)
-		configExists := statErr == nil
-		if err := writeConfigYAML(configPath); err != nil {
-			fmt.Printf("⚠️  warning: failed to generate config.yaml: %v\n", err)
-		} else if configExists {
-			fmt.Println("✅ Using existing core/config.yaml")
-		} else {
-			fmt.Println("✅ Generated core/config.yaml with default values")
+	var tasks []Task
+	if setup.hasUI() {
+		tasks = append(tasks, Task{
+			Action:   func() error { return installUIDependencies(setup.uiPath) },
+			Progress: NewProgressBar("Installing UI dependencies (npm install)"),
+			Name:     "Install UI dependencies",
+		})
+	}
+	if setup.hasCore() {
+		tasks = append(tasks, Task{
+			Action:   func() error { return installCoreDependencies(setup.corePath) },
+			Progress: NewProgressBar("Downloading Core dependencies (go mod download)"),
+			Name:     "Download Core dependencies",
+		})
+	}
+	if len(tasks) == 0 {
+		return
+	}
+
+	fmt.Println("\n📥 Installing dependencies concurrently...")
+	setup.printDependencyWarnings(RunConcurrent(tasks))
+}
+
+func (setup *developmentSetup) printDependencyWarnings(results []TaskResult) {
+	for _, result := range results {
+		if result.Error == nil {
+			continue
+		}
+		switch result.Name {
+		case "Install UI dependencies":
+			fmt.Printf("⚠️  warning: failed to install ui dependencies: %v\n", result.Error)
+			fmt.Printf("   you can install them manually with: cd %s && npm install\n", setup.uiPath)
+		case "Download Core dependencies":
+			fmt.Printf("⚠️  warning: failed to download core dependencies: %v\n", result.Error)
+			fmt.Printf("   you can download them manually with: cd %s && go mod download\n", setup.corePath)
 		}
 	}
+}
 
-	if hasUI {
-		envPath := filepath.Join(uiPath, ".env.local")
-		_, statErr := os.Stat(envPath)
-		envExists := statErr == nil
-		if err := writeEnvLocal(envPath); err != nil {
-			fmt.Printf("⚠️  warning: failed to generate .env.local: %v\n", err)
-		} else if envExists {
-			fmt.Println("✅ Using existing ui/.env.local")
-		} else {
-			fmt.Println("✅ Generated ui/.env.local with default API URL")
-		}
+func (setup *developmentSetup) generateConfigFiles() {
+	if setup.hasCore() {
+		generateCoreConfig(setup.corePath)
 	}
-
-	// Save the canonical project marker.
-	if err := setProjectConfig(cwd, uiPath, corePath); err != nil {
-		return fmt.Errorf("failed to save project configuration: %w", err)
+	if setup.hasUI() {
+		generateUIConfig(setup.uiPath)
 	}
+}
 
+func generateCoreConfig(corePath string) {
+	configPath := filepath.Join(corePath, "config.yaml")
+	_, statErr := os.Stat(configPath)
+	configExists := statErr == nil
+	if err := writeConfigYAML(configPath); err != nil {
+		fmt.Printf("⚠️  warning: failed to generate config.yaml: %v\n", err)
+	} else if configExists {
+		fmt.Println("✅ Using existing core/config.yaml")
+	} else {
+		fmt.Println("✅ Generated core/config.yaml with default values")
+	}
+}
+
+func generateUIConfig(uiPath string) {
+	envPath := filepath.Join(uiPath, ".env.local")
+	_, statErr := os.Stat(envPath)
+	envExists := statErr == nil
+	if err := writeEnvLocal(envPath); err != nil {
+		fmt.Printf("⚠️  warning: failed to generate .env.local: %v\n", err)
+	} else if envExists {
+		fmt.Println("✅ Using existing ui/.env.local")
+	} else {
+		fmt.Println("✅ Generated ui/.env.local with default API URL")
+	}
+}
+
+func (setup *developmentSetup) printSummary() {
 	fmt.Println("\n✅ Development environment ready!")
-	fmt.Printf("📁 Project initialized at: %s\n", cwd)
+	fmt.Printf("📁 Project initialized at: %s\n", setup.projectPath)
 	fmt.Println("\n📝 Next steps:")
 
 	switch {
-	case hasUI && hasCore:
+	case setup.hasUI() && setup.hasCore():
 		fmt.Println("   1. Run 'orchcli start' to start both UI and Core locally")
-	case hasUI:
+	case setup.hasUI():
 		fmt.Println("   1. Run 'orchcli start' to start UI locally with Core from Docker")
-	case hasCore:
+	case setup.hasCore():
 		fmt.Println("   1. Run 'orchcli start' to start Core locally with UI from Docker")
 	}
-
 	fmt.Println("   2. Make your changes in the source repositories")
 	fmt.Println("   3. UI changes hot-reload; restart a host Core process after Core changes")
 
-	usingForks := (forkUI != "" && forkUI != defaultUIRepo) ||
-		(forkCore != "" && forkCore != defaultCoreRepo)
-
-	if usingForks {
+	if setup.uiIsFork || setup.coreIsFork {
 		fmt.Println("\n🍴 Fork workflow detected (External Contributor):")
 		fmt.Println("   1. Create a feature branch: git checkout -b feature/my-feature")
 		fmt.Println("   2. Push to your fork: git push origin feature/my-feature")
 		fmt.Println("   3. Create a pull request on GitHub")
-	} else if hasUI || hasCore {
+	} else if setup.hasUI() || setup.hasCore() {
 		fmt.Println("\n👥 Official repo workflow (Team Member):")
 		fmt.Println("   1. Create a feature branch or work on main")
 		fmt.Println("   2. Push directly: git push origin <branch>")
 	}
-
-	return nil
 }
 
 func resolveExistingCheckout(projectPath, sourcePath, component, markerFile string) (string, error) {
@@ -395,7 +425,16 @@ func validateRepoFormat(repo string) error {
 	return nil
 }
 
-func checkPrerequisites() error {
+func checkPrerequisites(requireGit bool) error {
+	if requireGit {
+		if err := ensureGit(); err != nil {
+			return err
+		}
+	}
+	return validateDockerCompose()
+}
+
+func ensureGit() error {
 	if err := checkCommand("git", "--version"); err != nil {
 		if autoInstall {
 			fmt.Println("⚠️  git not found. installing git...")
@@ -406,10 +445,6 @@ func checkPrerequisites() error {
 		} else {
 			return fmt.Errorf("git is not installed. please install git first")
 		}
-	}
-
-	if err := validateDockerCompose(); err != nil {
-		return err
 	}
 
 	return nil

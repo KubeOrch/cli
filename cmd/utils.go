@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -20,7 +21,9 @@ const (
 	// composeFilePerm allows group/world read for docker-compose files (no secrets).
 	composeFilePerm os.FileMode = 0644
 	// secretKeyBytes is the number of random bytes used for JWT/encryption keys.
-	secretKeyBytes = 32
+	secretKeyBytes       = 32
+	dockerStartupTimeout = time.Minute
+	dockerPollInterval   = time.Second
 )
 
 // writeEmbeddedComposeFiles extracts all docker-compose files from the
@@ -274,24 +277,14 @@ func getDockerComposeCommand() []string {
 
 func startDockerDaemon() error {
 	if runtime.GOOS == "windows" {
-		candidates := []string{
-			filepath.Join(os.Getenv("ProgramFiles"), "Docker", "Docker", "Docker Desktop.exe"),
-			filepath.Join(os.Getenv("LOCALAPPDATA"), "Docker", "Docker Desktop.exe"),
+		fmt.Println("   starting docker desktop...")
+		startCmd := exec.Command("docker", "desktop", "start")
+		startCmd.Stdout = os.Stdout
+		startCmd.Stderr = os.Stderr
+		if err := startCmd.Run(); err != nil {
+			return fmt.Errorf("failed to start docker desktop: %w", err)
 		}
-		for _, dockerDesktop := range candidates {
-			if dockerDesktop == "" {
-				continue
-			}
-			if _, err := os.Stat(dockerDesktop); err != nil {
-				continue
-			}
-			fmt.Println("   opening docker desktop...")
-			if err := exec.Command(dockerDesktop).Start(); err != nil {
-				return fmt.Errorf("failed to open Docker Desktop: %w", err)
-			}
-			return waitForDockerDaemon(60)
-		}
-		return fmt.Errorf("Docker Desktop executable was not found")
+		return waitForDockerDaemon(dockerStartupTimeout)
 	}
 
 	if err := checkCommand("systemctl", "--version"); err == nil {
@@ -318,20 +311,28 @@ func startDockerDaemon() error {
 	if _, err := exec.LookPath("open"); err == nil {
 		fmt.Println("   opening docker desktop...")
 		if err := exec.Command("open", "-a", "Docker").Run(); err == nil {
-			return waitForDockerDaemon(60)
+			return waitForDockerDaemon(dockerStartupTimeout)
 		}
 	}
 
 	return fmt.Errorf("unable to start docker daemon automatically")
 }
 
-func waitForDockerDaemon(maxSeconds int) error {
+func waitForDockerDaemon(timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	fmt.Println("   waiting for docker to start...")
-	for i := 0; i < maxSeconds; i++ {
-		if err := checkCommand("docker", "info"); err == nil {
+	ticker := time.NewTicker(dockerPollInterval)
+	defer ticker.Stop()
+	for {
+		if err := exec.CommandContext(ctx, "docker", "info").Run(); err == nil {
 			return nil
 		}
-		time.Sleep(time.Second)
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("docker desktop did not start within %s", timeout)
+		case <-ticker.C:
+		}
 	}
-	return fmt.Errorf("docker desktop did not start within %d seconds", maxSeconds)
 }

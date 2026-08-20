@@ -55,11 +55,11 @@ curl -sfL https://kubeorch.dev/install.sh | sh -s -- --uninstall
 
 ## Features
 
-- **Concurrent Operations** - Fast parallel execution for cloning, pulling, and health checks
+- **Concurrent Operations** - Fast parallel execution for repository cloning and dependency installation
 - **Safe Configuration Management** - File locking prevents corruption during concurrent access
 - **Reliable Project Discovery** - Resolves `.kubeorch/project.json` from the current directory or any child directory
 - **Existing Checkout Support** - Adopts local UI/Core repositories without cloning or overwriting them
-- **Hot Reload** - All development modes support hot reload for rapid iteration
+- **Fast Local Iteration** - UI changes hot-reload; Core runs directly on the host for quick restarts
 
 ## Commands
 
@@ -111,13 +111,14 @@ release images are published.
 ```bash
 # Clone repositories, or adopt checkouts that already exist
 orchcli init --fork-ui --fork-core
-# orchcli init --ui-path ./ui --core-path ./core --skip-deps
+# orchcli init --ui-path ./ui --core-path ./core
 
 # Start MongoDB in Docker
 orchcli start -d
 
 # Start Core (Terminal 1)
 cd core && go run .
+# Restart this process after changing Core code
 
 # Start UI (Terminal 2)  
 cd ui && npm run dev

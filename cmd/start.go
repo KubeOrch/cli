@@ -21,8 +21,8 @@ var startCmd = &cobra.Command{
 	Long: `Start KubeOrch services based on your initialization:
 - If no repos cloned: runs from Docker images
 - If UI cloned: runs UI locally with hot reload, Core from image
-- If Core cloned: runs Core locally with hot reload, UI from image
-- If both cloned: runs both locally with hot reload`,
+- If Core cloned: runs Core locally on the host, UI from image
+- If both cloned: runs UI and Core locally; UI hot-reloads and Core requires restarts`,
 	RunE: runStart,
 }
 

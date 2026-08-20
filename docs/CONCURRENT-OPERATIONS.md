@@ -2,7 +2,7 @@
 
 ## Overview
 
-OrchCLI implements concurrent task execution to improve performance when running multiple independent operations. This feature significantly reduces waiting time for operations like cloning repositories, pulling Docker images, and running health checks.
+OrchCLI implements concurrent task execution to improve performance when running multiple independent operations. This feature reduces waiting time when cloning repositories and installing UI and Core dependencies.
 
 ## Architecture
 
@@ -81,18 +81,22 @@ tasks := []Task{
         },
     },
 }
-RunConcurrentTasks(tasks)
+RunConcurrent(tasks)
 ```
 
-### Docker Operations
+### Dependency Installation
 
-Starting services runs health checks concurrently:
+During `orchcli init`, UI and Core dependencies are installed concurrently:
 ```go
 tasks := []Task{
-    {Name: "Checking MongoDB", Action: checkMongoDB},
-    {Name: "Checking Core API", Action: checkCore},
-    {Name: "Checking UI", Action: checkUI},
+    {Name: "Install UI dependencies", Action: func() error {
+        return installUIDependencies(uiPath)
+    }},
+    {Name: "Download Core dependencies", Action: func() error {
+        return installCoreDependencies(corePath)
+    }},
 }
+RunConcurrent(tasks)
 ```
 
 ## Implementation Details
@@ -117,21 +121,27 @@ tasks := []Task{
 ### Synchronization
 
 ```go
-func RunConcurrentTasks(tasks []Task) error {
+func RunConcurrent(tasks []Task) []TaskResult {
     var wg sync.WaitGroup
-    results := make(chan TaskResult, len(tasks))
+    resultChannel := make(chan TaskResult, len(tasks))
     
     for _, task := range tasks {
         wg.Add(1)
         go func(t Task) {
             defer wg.Done()
             err := t.Action()
-            results <- TaskResult{Error: err, Name: t.Name}
+            resultChannel <- TaskResult{Error: err, Name: t.Name}
         }(task)
     }
-    
+
     wg.Wait()
-    // Process results...
+    close(resultChannel)
+
+    results := make([]TaskResult, 0, len(tasks))
+    for result := range resultChannel {
+        results = append(results, result)
+    }
+    return results
 }
 ```
 
@@ -155,9 +165,8 @@ Total time: 5s
 
 1. **Use for Independent Operations**
    - Repository cloning
-   - Docker image pulls
-   - Health checks
-   - File downloads
+   - UI and Core dependency installation
+   - Other independent file downloads
 
 2. **Avoid for Dependent Operations**
    - Database migrations

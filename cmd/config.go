@@ -20,10 +20,10 @@ const (
 var errProjectMarkerNotFound = errors.New("project marker not found")
 
 type projectMarker struct {
-	Version  int    `json:"version"`
 	UIPath   string `json:"ui_path,omitempty"`
 	CorePath string `json:"core_path,omitempty"`
 	Mode     string `json:"mode"`
+	Version  int    `json:"version"`
 }
 
 type ProjectConfig struct {
@@ -118,9 +118,7 @@ func SaveConfig(config *OrchConfig) error {
 		_ = fileLock.Unlock()
 	}()
 
-	// Write atomically
-	const configFileMode = 0600
-	if err := os.WriteFile(configPath, data, configFileMode); err != nil {
+	if err := writeFileAtomically(configPath, data, configFilePerm); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -164,7 +162,12 @@ func getCurrentProjectConfig() (*ProjectConfig, error) {
 		return closest, nil
 	}
 
-	return nil, fmt.Errorf("%w: no %s found in %s or its parents; run 'orchcli init' from the project root", errProjectMarkerNotFound, projectMarkerFilename, cwd)
+	return nil, fmt.Errorf(
+		"%w: no %s found in %s or its parents; run 'orchcli init' from the project root",
+		errProjectMarkerNotFound,
+		projectMarkerFilename,
+		cwd,
+	)
 }
 
 func setProjectConfig(projectPath string, uiPath, corePath string) error {
@@ -236,8 +239,51 @@ func writeProjectMarker(project *ProjectConfig) error {
 	data = append(data, '\n')
 
 	markerPath := filepath.Join(markerDir, projectMarkerFilename)
-	if err := os.WriteFile(markerPath, data, configFilePerm); err != nil {
+	if err := writeFileAtomically(markerPath, data, configFilePerm); err != nil {
 		return fmt.Errorf("failed to write project marker %s: %w", markerPath, err)
+	}
+	return nil
+}
+
+func writeFileAtomically(targetPath string, data []byte, perm os.FileMode) error {
+	return writeFileAtomicallyWithHook(targetPath, data, perm, nil)
+}
+
+func writeFileAtomicallyWithHook(
+	targetPath string,
+	data []byte,
+	perm os.FileMode,
+	beforeRename func(string) error,
+) error {
+	tempFile, err := os.CreateTemp(filepath.Dir(targetPath), "."+filepath.Base(targetPath)+"-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tempPath := tempFile.Name()
+	defer func() {
+		_ = tempFile.Close()
+		_ = os.Remove(tempPath)
+	}()
+
+	if err := tempFile.Chmod(perm); err != nil {
+		return fmt.Errorf("failed to set temporary file permissions: %w", err)
+	}
+	if _, err := tempFile.Write(data); err != nil {
+		return fmt.Errorf("failed to write temporary file: %w", err)
+	}
+	if err := tempFile.Sync(); err != nil {
+		return fmt.Errorf("failed to sync temporary file: %w", err)
+	}
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file: %w", err)
+	}
+	if beforeRename != nil {
+		if err := beforeRename(tempPath); err != nil {
+			return fmt.Errorf("failed before replacing target file: %w", err)
+		}
+	}
+	if err := os.Rename(tempPath, targetPath); err != nil {
+		return fmt.Errorf("failed to replace target file: %w", err)
 	}
 	return nil
 }
@@ -275,14 +321,27 @@ func parseProjectMarker(projectPath, markerPath string, data []byte) (*ProjectCo
 		return nil, fmt.Errorf("invalid project marker %s: %w; run 'orchcli init' from %s to repair it", markerPath, err, projectPath)
 	}
 	if marker.Version != projectMarkerVersion {
-		return nil, fmt.Errorf("unsupported project marker version %d in %s (expected %d); update OrchCLI or run 'orchcli init' from %s", marker.Version, markerPath, projectMarkerVersion, projectPath)
+		return nil, fmt.Errorf(
+			"unsupported project marker version %d in %s (expected %d); update OrchCLI or run 'orchcli init' from %s",
+			marker.Version,
+			markerPath,
+			projectMarkerVersion,
+			projectPath,
+		)
 	}
 
 	uiPath := resolveProjectPath(projectPath, marker.UIPath)
 	corePath := resolveProjectPath(projectPath, marker.CorePath)
 	expectedMode := projectMode(uiPath, corePath)
 	if marker.Mode != expectedMode {
-		return nil, fmt.Errorf("invalid project marker %s: mode %q does not match configured source paths (expected %q); run 'orchcli init' from %s to repair it", markerPath, marker.Mode, expectedMode, projectPath)
+		return nil, fmt.Errorf(
+			"invalid project marker %s: mode %q does not match configured source paths (expected %q); "+
+				"run 'orchcli init' from %s to repair it",
+			markerPath,
+			marker.Mode,
+			expectedMode,
+			projectPath,
+		)
 	}
 
 	project := &ProjectConfig{
@@ -299,10 +358,18 @@ func parseProjectMarker(projectPath, markerPath string, data []byte) (*ProjectCo
 
 func validateProjectSources(project *ProjectConfig) error {
 	if project.UIPath != "" && !dirExists(project.UIPath) {
-		return fmt.Errorf("configured UI checkout is missing: %s; run 'orchcli init --ui-path <path>' from %s to repair it", project.UIPath, project.Path)
+		return fmt.Errorf(
+			"configured UI checkout is missing: %s; run 'orchcli init --ui-path <path>' from %s to repair it",
+			project.UIPath,
+			project.Path,
+		)
 	}
 	if project.CorePath != "" && !dirExists(project.CorePath) {
-		return fmt.Errorf("configured Core checkout is missing: %s; run 'orchcli init --core-path <path>' from %s to repair it", project.CorePath, project.Path)
+		return fmt.Errorf(
+			"configured Core checkout is missing: %s; run 'orchcli init --core-path <path>' from %s to repair it",
+			project.CorePath,
+			project.Path,
+		)
 	}
 	return nil
 }
@@ -383,8 +450,7 @@ func removeProjectConfig(projectPath string) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	const configFileMode = 0600
-	if err := os.WriteFile(configPath, data, configFileMode); err != nil {
+	if err := writeFileAtomically(configPath, data, configFilePerm); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 

@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -80,6 +82,63 @@ func TestProjectMarkerErrorsAreActionable(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
+}
+
+func TestAtomicWritePreservesTargetBeforeRenameFailure(t *testing.T) {
+	targetPath := filepath.Join(t.TempDir(), projectMarkerFilename)
+	original := []byte(`{"version":1,"mode":"production"}`)
+	if err := os.WriteFile(targetPath, original, configFilePerm); err != nil {
+		t.Fatal(err)
+	}
+
+	expectedErr := errors.New("simulated interruption")
+	err := writeFileAtomicallyWithHook(
+		targetPath,
+		[]byte(`{"version":1,"ui_path":"ui","mode":"ui-dev"}`),
+		configFilePerm,
+		func(string) error { return expectedErr },
+	)
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected simulated interruption, got %v", err)
+	}
+
+	actual, err := os.ReadFile(targetPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(actual) != string(original) {
+		t.Fatalf("target changed after failed replacement: %q", actual)
+	}
+
+	tempFiles, err := filepath.Glob(filepath.Join(filepath.Dir(targetPath), ".project.json-*.tmp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tempFiles) != 0 {
+		t.Fatalf("temporary files were not cleaned up: %v", tempFiles)
+	}
+}
+
+func TestExistingCheckoutPrerequisitesDoNotRequireGit(t *testing.T) {
+	mockDir := t.TempDir()
+	mockPath := filepath.Join(mockDir, "docker")
+	mockContent := "#!/bin/sh\nexit 0\n"
+	if runtime.GOOS == "windows" {
+		mockPath += ".bat"
+		mockContent = "@echo off\r\nexit /b 0\r\n"
+	}
+	if err := os.WriteFile(mockPath, []byte(mockContent), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("PATH", mockDir)
+	previousAutoInstall := autoInstall
+	autoInstall = false
+	defer func() { autoInstall = previousAutoInstall }()
+
+	if err := checkPrerequisites(false); err != nil {
+		t.Fatalf("existing-checkout prerequisites unexpectedly required Git: %v", err)
+	}
 }
 
 func TestResolveExistingCheckout(t *testing.T) {

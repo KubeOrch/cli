@@ -40,11 +40,12 @@ Browser :3001 -> UI (npm run dev)
 Run it with:
 
 ```bash
-orchcli init --ui-path ./ui --core-path ./core --skip-deps
+orchcli init --ui-path ./ui --core-path ./core
 orchcli start -d
 
 # Terminal 1
 cd core && go run .
+# Restart this process after changing Core code
 
 # Terminal 2
 cd ui && npm run dev
