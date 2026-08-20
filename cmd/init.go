@@ -95,9 +95,15 @@ func setupProduction() error {
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
-	existingProject, err := loadProjectAtPath(cwd)
-	if err != nil && !errors.Is(err, errProjectMarkerNotFound) {
+	existingProject, err := loadProjectMarker(cwd)
+	if errors.Is(err, errProjectMarkerNotFound) {
+		existingProject = nil
+	} else if err != nil {
 		return err
+	}
+	projectPath := cwd
+	if existingProject != nil {
+		projectPath = existingProject.Path
 	}
 	if existingProject != nil && (existingProject.UIPath != "" || existingProject.CorePath != "") {
 		fmt.Println("🔧 Refreshing existing OrchCLI development environment")
@@ -114,13 +120,13 @@ func setupProduction() error {
 
 	dirs := []string{"docker", "scripts"}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, dirPerm); err != nil {
+		if err := os.MkdirAll(filepath.Join(projectPath, dir), dirPerm); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
 
 	// Write embedded docker-compose files
-	if err := writeEmbeddedComposeFiles(filepath.Join(cwd, "docker")); err != nil {
+	if err := writeEmbeddedComposeFiles(filepath.Join(projectPath, "docker")); err != nil {
 		return fmt.Errorf("failed to write docker-compose files: %w", err)
 	}
 
@@ -129,37 +135,23 @@ func setupProduction() error {
 		uiPath = existingProject.UIPath
 		corePath = existingProject.CorePath
 	}
-	if err := setProjectConfig(cwd, uiPath, corePath); err != nil {
+	if err := setProjectConfig(projectPath, uiPath, corePath); err != nil {
 		return fmt.Errorf("failed to save project configuration: %w", err)
 	}
 	if uiPath != "" || corePath != "" {
 		fmt.Println("\n✅ Development environment refreshed without changing its mode!")
-		fmt.Printf("📁 Project initialized at: %s\n", cwd)
+		fmt.Printf("📁 Project initialized at: %s\n", projectPath)
 		fmt.Println("\n   Run 'orchcli start' to start the configured development services")
 		return nil
 	}
 
 	fmt.Println("\n✅ Production environment ready!")
-	fmt.Printf("📁 Project initialized at: %s\n", cwd)
+	fmt.Printf("📁 Project initialized at: %s\n", projectPath)
 	fmt.Println("\n📝 Docker images that will be used:")
 	fmt.Println("   - ghcr.io/kubeorch/core:v0.0.3 (digest pinned)")
 	fmt.Println("   - ghcr.io/kubeorch/ui:v0.0.3 (digest pinned)")
 	fmt.Println("\n   Run 'orchcli start' to start the pinned release images")
 	return nil
-}
-
-func loadProjectAtPath(projectPath string) (*ProjectConfig, error) {
-	project, err := loadProjectMarker(projectPath)
-	if errors.Is(err, errProjectMarkerNotFound) {
-		return nil, errProjectMarkerNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to load project configuration: %w", err)
-	}
-	if filepath.Clean(project.Path) != filepath.Clean(projectPath) {
-		return nil, errProjectMarkerNotFound
-	}
-	return project, nil
 }
 
 type developmentSetup struct {

@@ -165,11 +165,12 @@ func TestExistingCheckoutPrerequisitesDoNotRequireGit(t *testing.T) {
 	}
 }
 
-func TestFlaglessInitPreservesDevelopmentSourcePaths(t *testing.T) {
+func TestFlaglessInitFromNestedDirectoryPreservesProjectRoot(t *testing.T) {
 	projectPath := t.TempDir()
 	uiPath := filepath.Join(projectPath, "ui")
 	corePath := filepath.Join(projectPath, "core")
-	for _, path := range []string{uiPath, corePath} {
+	nestedPath := filepath.Join(corePath, "handlers")
+	for _, path := range []string{uiPath, corePath, nestedPath} {
 		if err := os.MkdirAll(path, dirPerm); err != nil {
 			t.Fatal(err)
 		}
@@ -182,7 +183,7 @@ func TestFlaglessInitPreservesDevelopmentSourcePaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if chdirErr := os.Chdir(projectPath); chdirErr != nil {
+	if chdirErr := os.Chdir(nestedPath); chdirErr != nil {
 		t.Fatal(chdirErr)
 	}
 	t.Cleanup(func() { _ = os.Chdir(previousDir) })
@@ -196,6 +197,9 @@ func TestFlaglessInitPreservesDevelopmentSourcePaths(t *testing.T) {
 	}
 	if loaded.Mode != "development" || loaded.UIPath != uiPath || loaded.CorePath != corePath {
 		t.Fatalf("flagless init changed the development marker: %#v", loaded)
+	}
+	if _, statErr := os.Stat(filepath.Join(nestedPath, projectMarkerDir, projectMarkerFilename)); !os.IsNotExist(statErr) {
+		t.Fatalf("flagless init created a nested project marker: %v", statErr)
 	}
 }
 
