@@ -54,6 +54,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	psArgs := make([]string, 0, len(dockerCompose)+additionalArgs)
 	psArgs = append(psArgs, dockerCompose...)
 	psArgs = append(psArgs, "-f", composeFile, "ps")
+	// #nosec G204 -- the executable is selected from hardcoded Docker Compose command names.
 	psCmd := exec.CommandContext(commandContext, psArgs[0], psArgs[1:]...)
 	psCmd.Dir = projectConfig.Path
 	psOutput, err := psCmd.Output()
@@ -77,6 +78,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	dbOutput, dbErr := dbCheckCmd.Output()
 	if dbErr != nil {
 		for _, name := range []string{"kubeorchestra-mongodb-dev", "kubeorchestra-mongodb-hybrid"} {
+			// #nosec G204 -- name is selected from the hardcoded container names above.
 			altCmd := exec.CommandContext(
 				commandContext,
 				"docker",
