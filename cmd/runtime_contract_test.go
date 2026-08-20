@@ -210,6 +210,7 @@ func TestFlaglessInitDoesNotOverwriteInvalidMarker(t *testing.T) {
 	if err := os.WriteFile(markerPath, original, configFilePerm); err != nil {
 		t.Fatal(err)
 	}
+	useMockDocker(t)
 
 	previousDir, err := os.Getwd()
 	if err != nil {
@@ -219,8 +220,12 @@ func TestFlaglessInitDoesNotOverwriteInvalidMarker(t *testing.T) {
 		t.Fatal(chdirErr)
 	}
 	t.Cleanup(func() { _ = os.Chdir(previousDir) })
-	if setupErr := setupProduction(); setupErr == nil {
+	setupErr := setupProduction()
+	if setupErr == nil {
 		t.Fatal("expected invalid project marker to block initialization")
+	}
+	if !strings.Contains(setupErr.Error(), "invalid project marker") {
+		t.Fatalf("expected an invalid marker error, got %v", setupErr)
 	}
 
 	actual, err := os.ReadFile(markerPath)
