@@ -37,6 +37,10 @@ func init() {
 }
 
 func runExec(cmd *cobra.Command, args []string) error {
+	if _, err := getCurrentProjectConfig(); err != nil {
+		return fmt.Errorf("failed to resolve KubeOrch project: %w", err)
+	}
+
 	if err := validateDockerCompose(); err != nil {
 		return err
 	}

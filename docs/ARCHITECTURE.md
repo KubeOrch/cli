@@ -1,178 +1,68 @@
-# OrchCLI Architecture
+# OrchCLI Runtime Architecture
 
-## Overview
+## Runtime Contract
 
-OrchCLI is designed to provide the optimal development experience for different types of developers working on the KubeOrchestra platform. It intelligently adapts based on what repositories are cloned locally.
+OrchCLI keeps stateful infrastructure in Docker and runs source checkouts on
+the host for a fast edit/reload loop. The standard endpoints are:
 
-## Core Principles
+| Service | Host endpoint | Container port |
+|---|---|---|
+| UI | `http://localhost:3001` | `3000` |
+| Core API | `http://localhost:3000/v1/api` | `3000` |
+| MongoDB | `mongodb://localhost:27017/kubeorchestra` | `27017` |
 
-1. **Developer-Centric**: Different setups for frontend, backend, and full-stack developers
-2. **Minimal Dependencies**: Only install what's necessary for your workflow
-3. **Smart Defaults**: Automatically detect and configure based on cloned repos
-4. **Hot Reload Everything**: All development modes support hot reload
+The UI browser API base URL is
+`NEXT_PUBLIC_API_URL=http://localhost:3000/v1/api`. A containerized Core uses
+`KUBEORCH_MONGO_URI=mongodb://mongodb:27017/kubeorchestra`; a host Core uses the
+generated `core/config.yaml` and connects through `localhost:27017`.
 
-## Architecture Modes
+## Modes
 
-### 1. Production Mode
-**When:** No repositories cloned
-**Purpose:** Testing with production images
+| Compose file | Mode | Docker services | Host services |
+|---|---|---|---|
+| `docker-compose.prod.yml` | Production | MongoDB, Core, UI | None |
+| `docker-compose.dev.yml` | Full development | MongoDB | Core, UI |
+| `docker-compose.hybrid-ui.yml` | UI development | MongoDB, Core | UI |
+| `docker-compose.hybrid-core.yml` | Core development | MongoDB, UI | Core |
 
-```
-┌─────────────────────────────────────────┐
-│           Docker Network                 │
-│                                          │
-│  ┌──────────┐  ┌──────────┐  ┌────────┐│
-│  │PostgreSQL│  │   Core   │  │   UI   ││
-│  │  :5432   │◄─│  :3000   │◄─│ :3001  ││
-│  └──────────┘  └──────────┘  └────────┘│
-│                                          │
-└─────────────────────────────────────────┘
-         ▲             ▲            ▲
-         │             │            │
-    localhost:5432  localhost:3000  localhost:3001
-```
+Full source development looks like this:
 
-### 2. Full Development Mode
-**When:** Both UI and Core repositories cloned
-**Purpose:** Full-stack development
-
-```
-┌──────── Host Machine ────────┐  ┌─── Docker ───┐
-│                              │  │              │
-│  ┌────────┐      ┌────────┐ │  │ ┌──────────┐│
-│  │   UI   │─────►│  Core  │ │  │ │PostgreSQL││
-│  │  :3001 │      │  :3000 │─┼──┼►│  :5432   ││
-│  └────────┘      └────────┘ │  │ └──────────┘│
-│   npm run dev       air      │  │              │
-└──────────────────────────────┘  └──────────────┘
+```text
+Browser :3001 -> UI (npm run dev)
+                    |
+                    v
+              Core :3000 (go run .)
+                    |
+                    v
+             MongoDB :27017 (Docker)
 ```
 
-### 3. Frontend Development Mode
-**When:** Only UI repository cloned
-**Purpose:** Frontend development without backend setup
+Run it with:
 
-```
-┌──────── Host Machine ────────┐  ┌────── Docker Network ──────┐
-│                              │  │                            │
-│         ┌────────┐           │  │ ┌──────────┐  ┌────────┐ │
-│         │   UI   │───────────┼──┼►│   Core   │◄─│Postgres│ │
-│         │  :3001 │           │  │ │  :3000   │  │  :5432 │ │
-│         └────────┘           │  │ └──────────┘  └────────┘ │
-│         npm run dev          │  │   (image)                 │
-└──────────────────────────────┘  └────────────────────────────┘
-```
+```bash
+orchcli init --ui-path ./ui --core-path ./core
+orchcli start -d
 
-### 4. Backend Development Mode
-**When:** Only Core repository cloned
-**Purpose:** Backend development without frontend setup
+# Terminal 1
+cd core && go run .
+# Restart this process after changing Core code
 
-```
-┌─────────────────── Docker Network ────────────────────┐
-│                                                        │
-│  ┌──────────┐  ┌─────────────────┐  ┌──────────┐    │
-│  │PostgreSQL│◄─│   Core          │◄─│    UI    │    │
-│  │  :5432   │  │  :3000          │  │   :3001  │    │
-│  └──────────┘  │ (mounted volume)│  └──────────┘    │
-│                └─────────────────┘    (image)        │
-│                  ▲                                    │
-└──────────────────┼────────────────────────────────────┘
-                   │
-            ┌──────┴──────┐
-            │ Host Machine│
-            │  Core code  │
-            │  (mounted)  │
-            └─────────────┘
+# Terminal 2
+cd ui && npm run dev
 ```
 
-## Key Design Decisions
+## Image Policy
 
-### 1. Asymmetric Hybrid Modes
+Generated Compose files use versioned, digest-pinned images. They do not use
+floating `latest` tags. MongoDB is multi-arch. The currently published
+KubeOrch Core and UI `v0.0.3` images contain AMD64 manifests only; production
+and hybrid modes on ARM64 remain dependent on new multi-arch component
+releases. Full source development works independently of those release images.
 
-The hybrid modes are intentionally different:
+## Project Discovery
 
-- **Frontend Mode**: UI runs on host because frontend developers are comfortable with Node.js/npm
-- **Backend Mode**: Core runs in container (with mounted code) so backend developers don't need Go installed
-
-This asymmetry is a feature, not a bug. It optimizes for each developer's workflow.
-
-### 2. Network Strategy
-
-- **Production**: Everything in Docker network
-- **Full Dev**: Everything on localhost
-- **Frontend Dev**: Mixed (UI on host, rest in Docker)
-- **Backend Dev**: Everything in Docker network (simpler than host-to-container networking)
-
-### 3. Hot Reload Implementation
-
-- **UI**: Uses Next.js built-in hot reload (`npm run dev`)
-- **Core**: Uses Air for Go hot reload
-- **Mounted volumes**: Changes on host immediately visible in container
-
-## Docker Compose Files
-
-| File | Mode | Services |
-|------|------|----------|
-| `docker-compose.prod.yml` | Production | All in Docker |
-| `docker-compose.dev.yml` | Full Dev | Only PostgreSQL |
-| `docker-compose.hybrid-ui.yml` | Frontend Dev | PostgreSQL + Core |
-| `docker-compose.hybrid-core.yml` | Backend Dev | All in Docker |
-
-## Port Mappings
-
-| Service | Internal Port | Host Port | Notes |
-|---------|--------------|-----------|-------|
-| PostgreSQL | 5432 | 5432 | Always in Docker |
-| Core API | 3000 | 3000 | Host or Docker |
-| UI | 3001 | 3001 | Host or Docker |
-
-## Environment Variables
-
-### Core Service
-- `DB_HOST`: `postgres` (Docker) or `localhost` (host)
-- `DB_PORT`: `5432`
-- `DB_NAME`: `kubeorchestra`
-- `DB_USER`: `kubeorchestra`
-- `DB_PASSWORD`: `kubeorchestra`
-
-### UI Service
-- `NEXT_PUBLIC_API_URL`: Browser-accessible API URL
-- `API_URL`: Server-side API URL (for SSR)
-- `PORT`: `3001`
-
-## Auto-Installation Flow
-
-```mermaid
-graph TD
-    A[orchcli init] --> B{Check Git}
-    B -->|Missing| C[Install Git]
-    B -->|Present| D{Check Repos}
-    
-    D --> E{UI Cloned?}
-    E -->|Yes| F[Check Node.js]
-    F -->|Missing| G[Install Node.js]
-    
-    D --> H{Core Cloned?}
-    H -->|Yes| I[Check Go]
-    I -->|Missing| J[Install Go]
-    
-    D --> K[Check Docker]
-    K -->|Missing| L[Install Docker]
-    K -->|Present| M[Check Docker Compose]
-    M -->|Missing| N[Install Docker Compose]
-```
-
-## Benefits of This Architecture
-
-1. **No Unnecessary Dependencies**: Backend devs don't need Node.js, frontend devs don't need Go (in hybrid mode)
-2. **Familiar Workflows**: Developers work the way they're used to
-3. **Fast Iteration**: Hot reload for all scenarios
-4. **Simple Networking**: Avoid complex host-to-container networking where possible
-5. **Flexible**: Easy to switch between modes
-
-## Future Improvements
-
-1. **DevContainers**: Full IDE integration with VS Code DevContainers
-2. **Cloud Development**: Support for GitHub Codespaces / Gitpod
-3. **Multi-tenant**: Support multiple projects simultaneously
-4. **Custom Networks**: Allow custom network configurations
-5. **Service Mesh**: Optional Istio/Linkerd integration for production-like development
+Every project-scoped command resolves the nearest `.kubeorch/project.json`
+while walking toward the filesystem root. This makes commands work from nested
+UI/Core directories and prevents an unrelated last-used project from being
+selected. See [Configuration Management](CONFIGURATION.md) for the schema and
+migration behavior.

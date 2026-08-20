@@ -1,11 +1,9 @@
-version: '3.8'
-
 # Development mode - both UI and Core run on host
 # Only MongoDB runs in Docker
 
 services:
   mongodb:
-    image: mongo:8.0
+    image: mongo:8.0@sha256:02a0cc7939f5ed38f30f9bc714ef5f682d49baf9350c54acf302ce833087fe8a
     container_name: kubeorchestra-mongodb-dev
     restart: unless-stopped
     environment:

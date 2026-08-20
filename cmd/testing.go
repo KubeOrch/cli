@@ -56,6 +56,8 @@ func ResetCommands() {
 	// Re-initialize flags
 	initCmd.Flags().StringVar(&forkUI, "fork-ui", "", "Clone UI repository")
 	initCmd.Flags().StringVar(&forkCore, "fork-core", "", "Clone Core repository")
+	initCmd.Flags().StringVar(&existingUIPath, "ui-path", "", "Use an existing UI checkout")
+	initCmd.Flags().StringVar(&existingCorePath, "core-path", "", "Use an existing Core checkout")
 	initCmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency installation")
 	initCmd.Flags().BoolVar(&autoInstall, "auto-install", true, "Automatically install missing dependencies")
 

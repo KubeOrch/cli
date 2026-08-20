@@ -26,17 +26,17 @@ func init() {
 }
 
 func runStop(cmd *cobra.Command, args []string) error {
+	projectConfig, err := getCurrentProjectConfig()
+	if err != nil {
+		return fmt.Errorf("failed to resolve KubeOrch project: %w", err)
+	}
+
 	if err := validateDockerCompose(); err != nil {
 		return err
 	}
 
-	projectConfig, err := getCurrentProjectConfig()
-	if err != nil {
-		return fmt.Errorf("no project initialized in current directory. Run 'orchcli init' first")
-	}
-
-	uiLocal := projectConfig.UIPath != "" && dirExists(projectConfig.UIPath)
-	coreLocal := projectConfig.CorePath != "" && dirExists(projectConfig.CorePath)
+	uiLocal := projectConfig.UIPath != ""
+	coreLocal := projectConfig.CorePath != ""
 
 	fmt.Println("🛑 stopping kubeorchestra services...")
 

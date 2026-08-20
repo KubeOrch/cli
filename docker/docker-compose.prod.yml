@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   kubeorchestra-net:
     driver: bridge
@@ -7,7 +5,7 @@ networks:
 
 services:
   mongodb:
-    image: mongo:8.0
+    image: mongo:8.0@sha256:02a0cc7939f5ed38f30f9bc714ef5f682d49baf9350c54acf302ce833087fe8a
     container_name: kubeorchestra-mongodb
     restart: unless-stopped
     networks:
@@ -29,7 +27,7 @@ services:
       start_period: 10s
 
   core:
-    image: ghcr.io/kubeorch/core:latest
+    image: ghcr.io/kubeorch/core:v0.0.3@sha256:eafafc2187bda39981bc9ae2fe5f80b77d00d26550b985e8a86c184fc8d4452e
     container_name: kubeorchestra-core
     restart: unless-stopped
     networks:
@@ -39,25 +37,23 @@ services:
     expose:
       - "3000"
     environment:
-      MONGO_URI: mongodb://mongodb:27017/kubeorchestra
-      MONGO_DB_NAME: kubeorchestra
+      KUBEORCH_MONGO_URI: mongodb://mongodb:27017/kubeorchestra
     depends_on:
       mongodb:
         condition: service_healthy
 
   ui:
-    image: ghcr.io/kubeorch/ui:latest
+    image: ghcr.io/kubeorch/ui:v0.0.3@sha256:7ae131ccca459c582bfa14287bd53e1c74bd79f3b3015560ab6c45d8686839f3
     container_name: kubeorchestra-ui
     restart: unless-stopped
     networks:
       - kubeorchestra-net
     ports:
-      - "3001:3001"
+      - "3001:3000"
     expose:
-      - "3001"
+      - "3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3000
-      API_URL_INTERNAL: http://core:3000
+      NEXT_PUBLIC_API_URL: http://localhost:3000/v1/api
     depends_on:
       - core
 

@@ -55,11 +55,11 @@ curl -sfL https://kubeorch.dev/install.sh | sh -s -- --uninstall
 
 ## Features
 
-- **Concurrent Operations** - Fast parallel execution for cloning, pulling, and health checks
+- **Concurrent Operations** - Fast parallel execution for repository cloning and dependency installation
 - **Safe Configuration Management** - File locking prevents corruption during concurrent access
-- **Multiple Project Support** - Manage multiple KubeOrch projects seamlessly
-- **Auto-detection** - Automatically determines development mode based on cloned repositories
-- **Hot Reload** - All development modes support hot reload for rapid iteration
+- **Reliable Project Discovery** - Resolves `.kubeorch/project.json` from the current directory or any child directory
+- **Existing Checkout Support** - Adopts local UI/Core repositories without cloning or overwriting them
+- **Fast Local Iteration** - UI changes hot-reload; Core runs directly on the host for quick restarts
 
 ## Commands
 
@@ -82,6 +82,7 @@ curl -sfL https://kubeorch.dev/install.sh | sh -s -- --uninstall
 - `orchcli logs --tail 50` - Show last 50 lines
 - `orchcli init --fork-ui` - Clone UI repository
 - `orchcli init --fork-core` - Clone Core repository
+- `orchcli init --ui-path ./ui --core-path ./core` - Use existing repositories
 
 ## Quick Start
 
@@ -93,7 +94,7 @@ orchcli start -d
 
 # Access application
 # UI: http://localhost:3001
-# API: http://localhost:3000
+# API: http://localhost:3000/v1/api
 
 # View logs
 orchcli logs -f
@@ -102,21 +103,27 @@ orchcli logs -f
 orchcli stop
 ```
 
+The currently published Core and UI `v0.0.3` images are pinned by digest and are
+available for AMD64 only. Use source development mode on ARM64 until multi-arch
+release images are published.
+
 ### Development Mode
 ```bash
-# Clone repositories for development
+# Clone repositories, or adopt checkouts that already exist
 orchcli init --fork-ui --fork-core
+# orchcli init --ui-path ./ui --core-path ./core
 
-# Start PostgreSQL
+# Start MongoDB in Docker
 orchcli start -d
 
 # Start Core (Terminal 1)
-cd core && air
+cd core && go run .
+# Restart this process after changing Core code
 
 # Start UI (Terminal 2)  
 cd ui && npm run dev
 
-# Access: UI at localhost:3001, API at localhost:3000
+# Access: UI at localhost:3001, API at localhost:3000/v1/api
 ```
 
 ### Frontend Development Only
@@ -136,11 +143,13 @@ cd ui && npm run dev
 # Clone Core repository
 orchcli init --fork-core
 
-# Start all services (Core with hot reload)
+# Start MongoDB and the published UI image
 orchcli start -d
 
-# Edit Core files locally - changes auto-reload
-# Access: UI at localhost:3001, API at localhost:3000
+# Run Core on the host
+cd core && go run .
+
+# Access: UI at localhost:3001, API at localhost:3000/v1/api
 ```
 
 ## Documentation

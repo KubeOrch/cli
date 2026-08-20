@@ -1,7 +1,5 @@
-version: '3.8'
-
 # Hybrid Core mode - Core repo cloned, UI from Docker image
-# All services run in Docker for simplicity
+# MongoDB and UI run in Docker; Core runs on the host.
 
 networks:
   kubeorchestra-net:
@@ -10,7 +8,7 @@ networks:
 
 services:
   mongodb:
-    image: mongo:8.0
+    image: mongo:8.0@sha256:02a0cc7939f5ed38f30f9bc714ef5f682d49baf9350c54acf302ce833087fe8a
     container_name: kubeorchestra-mongodb-hybrid
     restart: unless-stopped
     networks:
@@ -29,48 +27,22 @@ services:
       retries: 5
       start_period: 10s
 
-  # Core runs in container with mounted code for hot reload
-  # This way backend devs don't need Go installed locally
-  core:
-    image: cosmtrek/air:latest
-    container_name: kubeorchestra-core-hybrid
-    restart: unless-stopped
-    networks:
-      - kubeorchestra-net
-    volumes:
-      - ../core:/app
-      - go-modules:/go/pkg/mod  # Cache Go modules
-    working_dir: /app
-    ports:
-      - "3000:3000"
-    environment:
-      MONGO_URI: mongodb://mongodb:27017/kubeorchestra
-      MONGO_DB_NAME: kubeorchestra
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    command: air
-
   ui:
-    image: ghcr.io/kubeorch/ui:latest
+    image: ghcr.io/kubeorch/ui:v0.0.3@sha256:7ae131ccca459c582bfa14287bd53e1c74bd79f3b3015560ab6c45d8686839f3
     container_name: kubeorchestra-ui-hybrid
     restart: unless-stopped
     networks:
       - kubeorchestra-net
     ports:
-      - "3001:3001"
+      - "3001:3000"
     environment:
-      # Both use internal Docker network names
-      NEXT_PUBLIC_API_URL: http://localhost:3000
-      API_URL_INTERNAL: http://core:3000
-      PORT: 3001
-    depends_on:
-      - core
+      NEXT_PUBLIC_API_URL: http://localhost:3000/v1/api
+
+# Core runs on host: cd core && go run . (port 3000)
+# Core connects to MongoDB at localhost:27017.
 
 volumes:
   mongodb_data:
     name: kubeorchestra_mongodb_data_hybrid
   mongodb_config:
     name: kubeorchestra_mongodb_config_hybrid
-  go-modules:
-    name: kubeorchestra_go_modules
