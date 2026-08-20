@@ -199,6 +199,39 @@ func TestFlaglessInitPreservesDevelopmentSourcePaths(t *testing.T) {
 	}
 }
 
+func TestFlaglessInitDoesNotOverwriteInvalidMarker(t *testing.T) {
+	projectPath := t.TempDir()
+	markerDir := filepath.Join(projectPath, projectMarkerDir)
+	if err := os.MkdirAll(markerDir, dirPerm); err != nil {
+		t.Fatal(err)
+	}
+	markerPath := filepath.Join(markerDir, projectMarkerFilename)
+	original := []byte("{invalid")
+	if err := os.WriteFile(markerPath, original, configFilePerm); err != nil {
+		t.Fatal(err)
+	}
+
+	previousDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chdirErr := os.Chdir(projectPath); chdirErr != nil {
+		t.Fatal(chdirErr)
+	}
+	t.Cleanup(func() { _ = os.Chdir(previousDir) })
+	if setupErr := setupProduction(); setupErr == nil {
+		t.Fatal("expected invalid project marker to block initialization")
+	}
+
+	actual, err := os.ReadFile(markerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(actual) != string(original) {
+		t.Fatalf("invalid marker was overwritten: %q", actual)
+	}
+}
+
 func TestResolveExistingCheckout(t *testing.T) {
 	projectPath := t.TempDir()
 	uiPath := filepath.Join(projectPath, "ui")

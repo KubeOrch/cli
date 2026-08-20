@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -94,7 +95,10 @@ func setupProduction() error {
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
-	existingProject := loadProjectAtPath(cwd)
+	existingProject, err := loadProjectAtPath(cwd)
+	if err != nil && !errors.Is(err, errProjectMarkerNotFound) {
+		return err
+	}
 	if existingProject != nil && (existingProject.UIPath != "" || existingProject.CorePath != "") {
 		fmt.Println("🔧 Refreshing existing OrchCLI development environment")
 		fmt.Println("   Preserving configured UI and Core source paths.")
@@ -144,12 +148,18 @@ func setupProduction() error {
 	return nil
 }
 
-func loadProjectAtPath(projectPath string) *ProjectConfig {
+func loadProjectAtPath(projectPath string) (*ProjectConfig, error) {
 	project, err := loadProjectMarker(projectPath)
-	if err != nil || filepath.Clean(project.Path) != filepath.Clean(projectPath) {
-		return nil
+	if errors.Is(err, errProjectMarkerNotFound) {
+		return nil, errProjectMarkerNotFound
 	}
-	return project
+	if err != nil {
+		return nil, fmt.Errorf("failed to load project configuration: %w", err)
+	}
+	if filepath.Clean(project.Path) != filepath.Clean(projectPath) {
+		return nil, errProjectMarkerNotFound
+	}
+	return project, nil
 }
 
 type developmentSetup struct {
