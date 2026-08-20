@@ -10,6 +10,41 @@ import (
 	"testing"
 )
 
+const (
+	mockDockerProcessEnv = "KUBEORCH_TEST_DOCKER_PROCESS"
+	testExecutablePerm   = 0750
+)
+
+func TestMain(m *testing.M) {
+	if os.Getenv(mockDockerProcessEnv) == "1" {
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
+func useMockDocker(t *testing.T) {
+	t.Helper()
+	mockDir := t.TempDir()
+	mockPath := filepath.Join(mockDir, "docker")
+	if runtime.GOOS == "windows" {
+		mockPath += ".exe"
+	}
+	testExecutable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	executableData, err := os.ReadFile(testExecutable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mockPath, executableData, testExecutablePerm); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv(mockDockerProcessEnv, "1")
+	t.Setenv("PATH", mockDir)
+}
+
 func TestProjectMarkerDiscoveryFromNestedDirectory(t *testing.T) {
 	projectPath := t.TempDir()
 	uiPath := filepath.Join(projectPath, "ui")
@@ -120,24 +155,47 @@ func TestAtomicWritePreservesTargetBeforeRenameFailure(t *testing.T) {
 }
 
 func TestExistingCheckoutPrerequisitesDoNotRequireGit(t *testing.T) {
-	mockDir := t.TempDir()
-	mockPath := filepath.Join(mockDir, "docker")
-	mockContent := "#!/bin/sh\nexit 0\n"
-	if runtime.GOOS == "windows" {
-		mockPath += ".bat"
-		mockContent = "@echo off\r\nexit /b 0\r\n"
-	}
-	if err := os.WriteFile(mockPath, []byte(mockContent), 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Setenv("PATH", mockDir)
+	useMockDocker(t)
 	previousAutoInstall := autoInstall
 	autoInstall = false
 	defer func() { autoInstall = previousAutoInstall }()
 
 	if err := checkPrerequisites(false); err != nil {
 		t.Fatalf("existing-checkout prerequisites unexpectedly required Git: %v", err)
+	}
+}
+
+func TestFlaglessInitPreservesDevelopmentSourcePaths(t *testing.T) {
+	projectPath := t.TempDir()
+	uiPath := filepath.Join(projectPath, "ui")
+	corePath := filepath.Join(projectPath, "core")
+	for _, path := range []string{uiPath, corePath} {
+		if err := os.MkdirAll(path, dirPerm); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := setProjectConfig(projectPath, uiPath, corePath); err != nil {
+		t.Fatal(err)
+	}
+	useMockDocker(t)
+	previousDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chdirErr := os.Chdir(projectPath); chdirErr != nil {
+		t.Fatal(chdirErr)
+	}
+	t.Cleanup(func() { _ = os.Chdir(previousDir) })
+	if setupErr := setupProduction(); setupErr != nil {
+		t.Fatal(setupErr)
+	}
+
+	loaded, err := loadProjectMarker(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Mode != "development" || loaded.UIPath != uiPath || loaded.CorePath != corePath {
+		t.Fatalf("flagless init changed the development marker: %#v", loaded)
 	}
 }
 

@@ -81,7 +81,10 @@ tasks := []Task{
         },
     },
 }
-RunConcurrent(tasks)
+results := RunConcurrent(tasks)
+if err := AggregateErrors(results); err != nil {
+    return err
+}
 ```
 
 ### Dependency Installation
@@ -96,7 +99,11 @@ tasks := []Task{
         return installCoreDependencies(corePath)
     }},
 }
-RunConcurrent(tasks)
+for _, result := range RunConcurrent(tasks) {
+    if result.Error != nil {
+        fmt.Printf("warning: %s failed: %v\n", result.Name, result.Error)
+    }
+}
 ```
 
 ## Implementation Details

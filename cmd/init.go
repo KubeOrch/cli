@@ -90,17 +90,22 @@ func runInit(cmd *cobra.Command, args []string) error {
 }
 
 func setupProduction() error {
-	fmt.Println("🚀 Setting up OrchCLI for production testing")
-	fmt.Println("   No repositories will be cloned.")
-	fmt.Println("   Docker images will be used for both UI and Core.")
-
-	if err := validateDockerCompose(); err != nil {
-		return err
-	}
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+	existingProject := loadProjectAtPath(cwd)
+	if existingProject != nil && (existingProject.UIPath != "" || existingProject.CorePath != "") {
+		fmt.Println("🔧 Refreshing existing OrchCLI development environment")
+		fmt.Println("   Preserving configured UI and Core source paths.")
+	} else {
+		fmt.Println("🚀 Setting up OrchCLI for production testing")
+		fmt.Println("   No repositories will be cloned.")
+		fmt.Println("   Docker images will be used for both UI and Core.")
+	}
+
+	if err := validateDockerCompose(); err != nil {
+		return err
 	}
 
 	dirs := []string{"docker", "scripts"}
@@ -115,9 +120,19 @@ func setupProduction() error {
 		return fmt.Errorf("failed to write docker-compose files: %w", err)
 	}
 
-	// Save the canonical project marker.
-	if err := setProjectConfig(cwd, "", ""); err != nil {
+	uiPath, corePath := "", ""
+	if existingProject != nil {
+		uiPath = existingProject.UIPath
+		corePath = existingProject.CorePath
+	}
+	if err := setProjectConfig(cwd, uiPath, corePath); err != nil {
 		return fmt.Errorf("failed to save project configuration: %w", err)
+	}
+	if uiPath != "" || corePath != "" {
+		fmt.Println("\n✅ Development environment refreshed without changing its mode!")
+		fmt.Printf("📁 Project initialized at: %s\n", cwd)
+		fmt.Println("\n   Run 'orchcli start' to start the configured development services")
+		return nil
 	}
 
 	fmt.Println("\n✅ Production environment ready!")
@@ -127,6 +142,14 @@ func setupProduction() error {
 	fmt.Println("   - ghcr.io/kubeorch/ui:v0.0.3 (digest pinned)")
 	fmt.Println("\n   Run 'orchcli start' to start the pinned release images")
 	return nil
+}
+
+func loadProjectAtPath(projectPath string) *ProjectConfig {
+	project, err := loadProjectMarker(projectPath)
+	if err != nil || filepath.Clean(project.Path) != filepath.Clean(projectPath) {
+		return nil
+	}
+	return project
 }
 
 type developmentSetup struct {
