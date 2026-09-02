@@ -210,16 +210,33 @@ ui_origin="http://localhost:$KUBEORCH_UI_PORT"
 wait_for_url Core "http://127.0.0.1:$KUBEORCH_CORE_PORT/v1"
 wait_for_url UI "http://127.0.0.1:$KUBEORCH_UI_PORT/login"
 
+wait_for_service_health() {
+  service="$1"
+  attempts=0
+  while [[ "$attempts" -lt 90 ]]; do
+    container_id="$(
+      cd "$project_dir"
+      docker compose -f "$compose_file" ps --quiet "$service"
+    )"
+    if [[ -n "$container_id" ]]; then
+      health="$(docker inspect "$container_id" --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}')"
+      if [[ "$health" == "healthy" ]]; then
+        return 0
+      fi
+      if [[ "$health" == "unhealthy" ]]; then
+        echo "$service container became unhealthy" >&2
+        return 1
+      fi
+    fi
+    attempts=$((attempts + 1))
+    sleep 2
+  done
+  echo "$service container did not become healthy" >&2
+  return 1
+}
+
 for service in mongodb core ui; do
-  container_id="$(
-    cd "$project_dir"
-    docker compose -f "$compose_file" ps --quiet "$service"
-  )"
-  health="$(docker inspect "$container_id" --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}')"
-  if [[ "$health" != "healthy" ]]; then
-    echo "$service container health is ${health:-unset}, expected healthy" >&2
-    exit 1
-  fi
+  wait_for_service_health "$service"
 done
 
 (
