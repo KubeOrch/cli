@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	defaultUIRepo   = "KubeOrch/ui"
-	defaultCoreRepo = "KubeOrch/core"
+	defaultUIRepo    = "KubeOrch/ui"
+	defaultCoreRepo  = "KubeOrch/core"
+	defaultCoreImage = "ghcr.io/kubeorch/core:v0.0.3@sha256:eafafc2187bda39981bc9ae2fe5f80b77d00d26550b985e8a86c184fc8d4452e"
+	defaultUIImage   = "ghcr.io/kubeorch/ui:v0.0.3@sha256:7ae131ccca459c582bfa14287bd53e1c74bd79f3b3015560ab6c45d8686839f3"
 )
 
 var (
@@ -148,10 +150,17 @@ func setupProduction() error {
 	fmt.Println("\n✅ Production environment ready!")
 	fmt.Printf("📁 Project initialized at: %s\n", projectPath)
 	fmt.Println("\n📝 Docker images that will be used:")
-	fmt.Println("   - ghcr.io/kubeorch/core:v0.0.3 (digest pinned)")
-	fmt.Println("   - ghcr.io/kubeorch/ui:v0.0.3 (digest pinned)")
+	fmt.Printf("   - %s\n", configuredEnvironmentValue("KUBEORCH_CORE_IMAGE", defaultCoreImage))
+	fmt.Printf("   - %s\n", configuredEnvironmentValue("KUBEORCH_UI_IMAGE", defaultUIImage))
 	fmt.Println("\n   Run 'orchcli start' to start the pinned release images")
 	return nil
+}
+
+func configuredEnvironmentValue(environmentName, defaultValue string) string {
+	if configured := strings.TrimSpace(os.Getenv(environmentName)); configured != "" {
+		return configured
+	}
+	return defaultValue
 }
 
 type developmentSetup struct {

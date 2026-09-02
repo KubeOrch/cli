@@ -94,7 +94,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 
 		fmt.Println("⏳ waiting for mongodb to be ready...")
-		if err := waitForMongoDB(); err != nil {
+		if err := waitForMongoDB(projectConfig.Path, composeFile); err != nil {
 			fmt.Printf("⚠️  warning: %v\n", err)
 			fmt.Println("   services may take a moment to be fully ready")
 		} else {
@@ -129,9 +129,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 			fmt.Println("   mongodb: localhost:27017 (docker)")
 		default:
 			fmt.Println("📊 all services running in docker:")
-			fmt.Println("   ui: http://localhost:3001")
-			fmt.Println("   api: http://localhost:3000/v1/api")
-			fmt.Println("   mongodb: localhost:27017")
+			fmt.Printf("   ui: http://localhost:%s\n", configuredEnvironmentValue("KUBEORCH_UI_PORT", "3001"))
+			fmt.Printf("   api: http://localhost:%s/v1/api\n", configuredEnvironmentValue("KUBEORCH_CORE_PORT", "3000"))
+			fmt.Printf("   mongodb: localhost:%s\n", configuredEnvironmentValue("KUBEORCH_MONGO_PORT", "27017"))
 		}
 
 		fmt.Println()
@@ -143,21 +143,21 @@ func runStart(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func waitForMongoDB() error {
-	maxRetries := 30
-	containerNames := []string{
-		"kubeorchestra-mongodb",
-		"kubeorchestra-mongodb-dev",
-		"kubeorchestra-mongodb-hybrid",
-	}
+func waitForMongoDB(projectPath, composeFile string) error {
+	dockerCompose := getDockerComposeCommand()
+	args := append([]string{}, dockerCompose...)
+	args = append(args,
+		"-f", composeFile,
+		"exec", "-T", "mongodb",
+		"mongosh", "--eval", "db.adminCommand('ping')",
+	)
 
-	for i := 0; i < maxRetries; i++ {
-		for _, name := range containerNames {
-			// #nosec G204 -- name is from a hardcoded list of known container names
-			cmd := exec.Command("docker", "exec", name, "mongosh", "--eval", "db.adminCommand('ping')")
-			if err := cmd.Run(); err == nil {
-				return nil
-			}
+	for i := 0; i < 30; i++ {
+		// #nosec G204 -- the executable is selected from hardcoded Docker Compose command names.
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = projectPath
+		if err := cmd.Run(); err == nil {
+			return nil
 		}
 
 		time.Sleep(time.Second)

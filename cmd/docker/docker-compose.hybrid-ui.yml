@@ -1,6 +1,8 @@
 # Hybrid UI mode - UI runs on host, Core from Docker image
 # MongoDB and Core run in Docker
 
+name: ${KUBEORCH_COMPOSE_PROJECT:-kubeorchestra}
+
 networks:
   kubeorchestra-net:
     driver: bridge
@@ -28,7 +30,7 @@ services:
       start_period: 10s
 
   core:
-    image: ghcr.io/kubeorch/core:v0.0.3@sha256:eafafc2187bda39981bc9ae2fe5f80b77d00d26550b985e8a86c184fc8d4452e
+    image: ${KUBEORCH_CORE_IMAGE:-ghcr.io/kubeorch/core:v0.0.3@sha256:eafafc2187bda39981bc9ae2fe5f80b77d00d26550b985e8a86c184fc8d4452e}
     container_name: kubeorchestra-core-hybrid
     restart: unless-stopped
     networks:
@@ -37,9 +39,16 @@ services:
       - "3000:3000"
     environment:
       KUBEORCH_MONGO_URI: mongodb://mongodb:27017/kubeorchestra
+      KUBEORCH_CORS_ALLOWED_ORIGINS: ${KUBEORCH_CORS_ALLOWED_ORIGINS:-http://localhost:3001}
     depends_on:
       mongodb:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --output-document=- http://127.0.0.1:3000/v1 | grep -q '\"status\":\"success\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 # UI runs on host: cd ui && npm install && npm run dev (port 3001)
 # UI connects to Core at localhost:3000/v1/api

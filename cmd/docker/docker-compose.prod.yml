@@ -1,19 +1,21 @@
+name: ${KUBEORCH_COMPOSE_PROJECT:-kubeorchestra}
+
 networks:
   kubeorchestra-net:
     driver: bridge
-    name: kubeorchestra-network
+    name: ${KUBEORCH_NETWORK_NAME:-kubeorchestra-network}
 
 services:
   mongodb:
     image: mongo:8.0@sha256:02a0cc7939f5ed38f30f9bc714ef5f682d49baf9350c54acf302ce833087fe8a
-    container_name: kubeorchestra-mongodb
+    container_name: ${KUBEORCH_MONGODB_CONTAINER:-kubeorchestra-mongodb}
     restart: unless-stopped
     networks:
       - kubeorchestra-net
     environment:
       MONGO_INITDB_DATABASE: kubeorchestra
     ports:
-      - "27017:27017"
+      - "${KUBEORCH_MONGO_PORT:-27017}:27017"
     expose:
       - "27017"
     volumes:
@@ -27,38 +29,46 @@ services:
       start_period: 10s
 
   core:
-    image: ghcr.io/kubeorch/core:v0.0.3@sha256:eafafc2187bda39981bc9ae2fe5f80b77d00d26550b985e8a86c184fc8d4452e
-    container_name: kubeorchestra-core
+    image: ${KUBEORCH_CORE_IMAGE:-ghcr.io/kubeorch/core:v0.0.3@sha256:eafafc2187bda39981bc9ae2fe5f80b77d00d26550b985e8a86c184fc8d4452e}
+    container_name: ${KUBEORCH_CORE_CONTAINER:-kubeorchestra-core}
     restart: unless-stopped
     networks:
       - kubeorchestra-net
     ports:
-      - "3000:3000"
+      - "${KUBEORCH_CORE_PORT:-3000}:3000"
     expose:
       - "3000"
     environment:
       KUBEORCH_MONGO_URI: mongodb://mongodb:27017/kubeorchestra
+      KUBEORCH_CORS_ALLOWED_ORIGINS: ${KUBEORCH_CORS_ALLOWED_ORIGINS:-http://localhost:3001}
     depends_on:
       mongodb:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --output-document=- http://127.0.0.1:3000/v1 | grep -q '\"status\":\"success\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   ui:
-    image: ghcr.io/kubeorch/ui:v0.0.3@sha256:7ae131ccca459c582bfa14287bd53e1c74bd79f3b3015560ab6c45d8686839f3
-    container_name: kubeorchestra-ui
+    image: ${KUBEORCH_UI_IMAGE:-ghcr.io/kubeorch/ui:v0.0.3@sha256:7ae131ccca459c582bfa14287bd53e1c74bd79f3b3015560ab6c45d8686839f3}
+    container_name: ${KUBEORCH_UI_CONTAINER:-kubeorchestra-ui}
     restart: unless-stopped
     networks:
       - kubeorchestra-net
     ports:
-      - "3001:3000"
+      - "${KUBEORCH_UI_PORT:-3001}:3000"
     expose:
       - "3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3000/v1/api
+      NEXT_PUBLIC_API_URL: ${KUBEORCH_BROWSER_API_URL:-http://localhost:3000/v1/api}
     depends_on:
-      - core
+      core:
+        condition: service_healthy
 
 volumes:
   mongodb_data:
-    name: kubeorchestra_mongodb_data
+    name: ${KUBEORCH_MONGODB_DATA_VOLUME:-kubeorchestra_mongodb_data}
   mongodb_config:
-    name: kubeorchestra_mongodb_config
+    name: ${KUBEORCH_MONGODB_CONFIG_VOLUME:-kubeorchestra_mongodb_config}

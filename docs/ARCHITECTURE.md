@@ -59,6 +59,14 @@ KubeOrch Core and UI `v0.0.3` images contain AMD64 manifests only; production
 and hybrid modes on ARM64 remain dependent on new multi-arch component
 releases. Full source development works independently of those release images.
 
+Release validation may set `KUBEORCH_CORE_IMAGE` and `KUBEORCH_UI_IMAGE` to
+test an explicit candidate or digest-pinned compatibility set. These overrides
+are not a user-facing version-selection mechanism. See
+[Community Release Smoke Tests](COMMUNITY-SMOKE.md).
+
+Release smokes also set isolated Compose project, network, port, and volume
+names. Normal commands retain the documented defaults.
+
 ## Project Discovery
 
 Every project-scoped command resolves the nearest `.kubeorch/project.json`

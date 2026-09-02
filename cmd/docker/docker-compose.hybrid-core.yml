@@ -1,6 +1,8 @@
 # Hybrid Core mode - Core repo cloned, UI from Docker image
 # MongoDB and UI run in Docker; Core runs on the host.
 
+name: ${KUBEORCH_COMPOSE_PROJECT:-kubeorchestra}
+
 networks:
   kubeorchestra-net:
     driver: bridge
@@ -28,7 +30,7 @@ services:
       start_period: 10s
 
   ui:
-    image: ghcr.io/kubeorch/ui:v0.0.3@sha256:7ae131ccca459c582bfa14287bd53e1c74bd79f3b3015560ab6c45d8686839f3
+    image: ${KUBEORCH_UI_IMAGE:-ghcr.io/kubeorch/ui:v0.0.3@sha256:7ae131ccca459c582bfa14287bd53e1c74bd79f3b3015560ab6c45d8686839f3}
     container_name: kubeorchestra-ui-hybrid
     restart: unless-stopped
     networks:

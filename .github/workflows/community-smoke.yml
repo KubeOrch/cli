@@ -1,0 +1,259 @@
+name: Community Release Smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/scripts/community-smoke.sh"
+      - ".github/workflows/community-smoke.yml"
+      - ".github/workflows/release-and-publish.yml"
+      - "cmd/**"
+      - "docker/**"
+      - "npm/**"
+      - "*.go"
+      - "go.mod"
+      - "go.sum"
+      - "install.sh"
+      - "package.json"
+  workflow_dispatch:
+    inputs:
+      cli_version:
+        description: Published CLI tag to verify (for example, v0.0.9)
+        required: true
+        type: string
+      core_image:
+        description: Digest-pinned multi-architecture Core image
+        required: true
+        type: string
+      ui_image:
+        description: Digest-pinned multi-architecture UI image
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: community-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASELINE_CLI_VERSION: v0.0.8
+  CORE_SOURCE_REF: 5ce2f3260ade492499b35e8e8d2bcf09d9329a9d
+  UI_SOURCE_REF: 0208a3267171cf9128cf146cead9cc9c1bc230ce
+  PLAYWRIGHT_CLI_PACKAGE: "@playwright/cli@0.1.19"
+
+jobs:
+  installer:
+    name: Installer (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            artifact: linux-amd64
+            binary: orchcli
+            file_pattern: x86-64
+          - runner: macos-15
+            platform: darwin/arm64
+            artifact: darwin-arm64
+            binary: orchcli
+            file_pattern: arm64
+    steps:
+      - name: Checkout CLI
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "20"
+
+      - name: Run npm installer unit tests
+        run: npm test
+
+      - name: Select smoke version
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.cli_version }}
+        run: |
+          version="${REQUESTED_VERSION:-$BASELINE_CLI_VERSION}"
+          echo "SMOKE_CLI_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Verify native installer and checksum
+        shell: bash
+        run: |
+          install_dir="$RUNNER_TEMP/orchcli-native"
+          mkdir -p "$install_dir"
+          ORCHCLI_VERSION="$SMOKE_CLI_VERSION" \
+          ORCHCLI_INSTALL_DIR="$install_dir" \
+          ORCHCLI_NO_SUDO=1 \
+            sh ./install.sh
+          "$install_dir/${{ matrix.binary }}" --version | tee native-version.log
+          file "$install_dir/${{ matrix.binary }}" | tee native-binary.log
+          grep -F "OrchCLI ${SMOKE_CLI_VERSION#v}" native-version.log
+          grep -F "${{ matrix.file_pattern }}" native-binary.log
+
+      - name: Verify npm installer and platform selection
+        shell: bash
+        env:
+          PUBLISHED_MODE: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          version="${SMOKE_CLI_VERSION#v}"
+          prefix="$RUNNER_TEMP/orchcli-npm"
+          if [[ "$PUBLISHED_MODE" == "true" ]]; then
+            npm install --global --prefix "$prefix" "@kubeorch/cli@$version"
+          else
+            npm version "$version" --no-git-tag-version --allow-same-version
+            package_file="$(npm pack --silent)"
+            npm install --global --prefix "$prefix" "./$package_file"
+          fi
+          "$prefix/bin/orchcli" --version | tee npm-version.log
+          npm_binary="$(find "$prefix" -type f -name 'orchcli-bin*' -print -quit)"
+          test -n "$npm_binary"
+          file "$npm_binary" | tee npm-binary.log
+          grep -F "OrchCLI ${SMOKE_CLI_VERSION#v}" npm-version.log
+          grep -F "${{ matrix.file_pattern }}" npm-binary.log
+
+      - name: Upload installer evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: installer-${{ matrix.artifact }}
+          path: |
+            native-version.log
+            native-binary.log
+            npm-version.log
+            npm-binary.log
+          if-no-files-found: warn
+
+  candidate-runtime:
+    name: Candidate runtime (linux/${{ matrix.arch }})
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    steps:
+      - name: Checkout CLI
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          path: cli
+          persist-credentials: false
+
+      - name: Checkout Core release source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          repository: KubeOrch/core
+          ref: ${{ env.CORE_SOURCE_REF }}
+          path: core
+          persist-credentials: false
+
+      - name: Checkout UI release source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          repository: KubeOrch/ui
+          ref: ${{ env.UI_SOURCE_REF }}
+          path: ui
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.2.0
+        with:
+          go-version: "1.22"
+          cache-dependency-path: cli/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "20"
+
+      - name: Build candidate release set
+        shell: bash
+        run: |
+          docker build --tag kubeorch/core:community-candidate ./core
+          docker build --tag kubeorch/ui:community-candidate ./ui
+          CGO_ENABLED=0 go -C cli build \
+            -ldflags "-s -w -X github.com/kubeorch/cli/cmd.version=candidate-${GITHUB_SHA::12}" \
+            -o "$RUNNER_TEMP/orchcli" .
+
+      - name: Run Community candidate smoke
+        shell: bash
+        env:
+          KUBEORCH_CORE_IMAGE: kubeorch/core:community-candidate
+          KUBEORCH_UI_IMAGE: kubeorch/ui:community-candidate
+          KUBEORCH_SMOKE_MODE: candidate
+          KUBEORCH_EVIDENCE_DIR: ${{ github.workspace }}/cli/output/playwright/community-smoke-linux-${{ matrix.arch }}
+        run: bash cli/.github/scripts/community-smoke.sh "$RUNNER_TEMP/orchcli" "${{ matrix.arch }}"
+
+      - name: Upload candidate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: candidate-runtime-linux-${{ matrix.arch }}
+          path: cli/output/playwright/community-smoke-linux-${{ matrix.arch }}/
+          if-no-files-found: warn
+
+  published-runtime:
+    name: Published runtime (linux/${{ matrix.arch }})
+    if: github.event_name == 'workflow_dispatch'
+    needs: installer
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    steps:
+      - name: Checkout CLI
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "20"
+
+      - name: Install published CLI
+        shell: bash
+        env:
+          CLI_VERSION: ${{ inputs.cli_version }}
+        run: |
+          install_dir="$RUNNER_TEMP/orchcli-published"
+          mkdir -p "$install_dir"
+          ORCHCLI_VERSION="$CLI_VERSION" \
+          ORCHCLI_INSTALL_DIR="$install_dir" \
+          ORCHCLI_NO_SUDO=1 \
+            sh ./install.sh
+          echo "ORCHCLI_BIN=$install_dir/orchcli" >> "$GITHUB_ENV"
+
+      - name: Run published Community smoke
+        shell: bash
+        env:
+          KUBEORCH_CORE_IMAGE: ${{ inputs.core_image }}
+          KUBEORCH_UI_IMAGE: ${{ inputs.ui_image }}
+          KUBEORCH_SMOKE_MODE: published
+          KUBEORCH_EVIDENCE_DIR: ${{ github.workspace }}/output/playwright/community-smoke-linux-${{ matrix.arch }}
+        run: bash .github/scripts/community-smoke.sh "$ORCHCLI_BIN" "${{ matrix.arch }}"
+
+      - name: Upload published evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: published-runtime-linux-${{ matrix.arch }}
+          path: output/playwright/community-smoke-linux-${{ matrix.arch }}/
+          if-no-files-found: error

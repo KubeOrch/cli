@@ -35,6 +35,8 @@ npm/bin/orchcli-bin
 npm/bin/*.exe
 *.tgz
 package/
+/output/
+/.playwright-cli/
 
 # Environment
 .env
