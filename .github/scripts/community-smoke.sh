@@ -244,7 +244,8 @@ done
   "$cli" status
 ) | tee "$evidence_dir/status.log"
 
-pwcli install-browser chromium >"$evidence_dir/playwright-install.log"
+npx --yes --package "$playwright_package" playwright-cli install-browser chromium \
+  >"$evidence_dir/playwright-install.log"
 pwcli open "$ui_origin/login" >"$evidence_dir/playwright-open.log"
 pwcli snapshot >"$evidence_dir/playwright-snapshot.log"
 pwcli requests >"$evidence_dir/playwright-requests.log"
