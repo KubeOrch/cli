@@ -66,35 +66,16 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println(string(psOutput))
 
 	fmt.Println("💾 database status:")
-	dbCheckCmd := exec.CommandContext(
-		commandContext,
-		"docker",
-		"exec",
-		"kubeorchestra-mongodb",
-		"mongosh",
-		"--eval",
-		"db.adminCommand('ping')",
+	dbArgs := append([]string{}, dockerCompose...)
+	dbArgs = append(dbArgs,
+		"-f", composeFile,
+		"exec", "-T", "mongodb",
+		"mongosh", "--eval", "db.adminCommand('ping')",
 	)
+	// #nosec G204 -- the executable is selected from hardcoded Docker Compose command names.
+	dbCheckCmd := exec.CommandContext(commandContext, dbArgs[0], dbArgs[1:]...)
+	dbCheckCmd.Dir = projectConfig.Path
 	dbOutput, dbErr := dbCheckCmd.Output()
-	if dbErr != nil {
-		for _, name := range []string{"kubeorchestra-mongodb-dev", "kubeorchestra-mongodb-hybrid"} {
-			// #nosec G204 -- name is selected from the hardcoded container names above.
-			altCmd := exec.CommandContext(
-				commandContext,
-				"docker",
-				"exec",
-				name,
-				"mongosh",
-				"--eval",
-				"db.adminCommand('ping')",
-			)
-			if output, err := altCmd.Output(); err == nil {
-				dbOutput = output
-				dbErr = nil
-				break
-			}
-		}
-	}
 
 	if dbErr != nil {
 		fmt.Println("   ❌ mongodb is not healthy or not running")
@@ -109,13 +90,16 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	fmt.Println("🩺 application status:")
-	printApplicationStatus(commandContext)
+	corePort := configuredEnvironmentValue("KUBEORCH_CORE_PORT", "3000")
+	uiPort := configuredEnvironmentValue("KUBEORCH_UI_PORT", "3001")
+	mongoPort := configuredEnvironmentValue("KUBEORCH_MONGO_PORT", "27017")
+	printApplicationStatus(commandContext, corePort, uiPort)
 
 	fmt.Println()
 	fmt.Println("🌐 service endpoints:")
-	fmt.Println("   ui:      http://localhost:3001")
-	fmt.Println("   api:     http://localhost:3000/v1/api")
-	fmt.Println("   mongodb: localhost:27017")
+	fmt.Printf("   ui:      http://localhost:%s\n", uiPort)
+	fmt.Printf("   api:     http://localhost:%s/v1/api\n", corePort)
+	fmt.Printf("   mongodb: localhost:%s\n", mongoPort)
 
 	fmt.Println()
 	fmt.Println("💡 tips:")
@@ -126,13 +110,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func printApplicationStatus(ctx context.Context) {
+func printApplicationStatus(ctx context.Context, corePort, uiPort string) {
 	checks := []struct {
 		name string
 		url  string
 	}{
-		{name: "core", url: "http://localhost:3000/v1/"},
-		{name: "ui", url: "http://localhost:3001/"},
+		{name: "core", url: "http://localhost:" + corePort + "/v1"},
+		{name: "ui", url: "http://localhost:" + uiPort + "/"},
 	}
 	type healthResult struct {
 		err        error

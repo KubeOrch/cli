@@ -9,7 +9,8 @@
   "scripts": {
     "postinstall": "node npm/scripts/postinstall.js",
     "prepack": "node npm/scripts/prepack.js",
-    "test": "echo \"Tests are run via Go test suite\" && exit 0"
+    "test": "npm run test:installer",
+    "test:installer": "node --test npm/scripts/postinstall.test.js"
   },
   "repository": {
     "type": "git",
@@ -49,6 +50,7 @@
   },
   "files": [
     "npm/",
+    "!npm/**/*.test.js",
     "README.md",
     "LICENSE"
   ]

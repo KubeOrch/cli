@@ -107,6 +107,11 @@ The currently published Core and UI `v0.0.3` images are pinned by digest and are
 available for AMD64 only. Use source development mode on ARM64 until multi-arch
 release images are published.
 
+The shell and npm installers verify the selected release asset against the
+published `checksums.txt`; they fail instead of compiling an unverified fallback
+binary. Release compatibility is validated using the documented
+[Community release smoke tests](docs/COMMUNITY-SMOKE.md).
+
 ### Development Mode
 ```bash
 # Clone repositories, or adopt checkouts that already exist

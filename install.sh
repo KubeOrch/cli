@@ -15,6 +15,7 @@ set -e
 GITHUB_REPO="KubeOrch/cli"
 BINARY_NAME="orchcli"
 DEFAULT_INSTALL_DIR="/usr/local/bin"
+TEMP_DIR=""
 
 # Colors for output
 RED='\033[0;31m'
@@ -35,6 +36,18 @@ error() {
 warning() {
     printf "${YELLOW}[WARN]${NC} %s\n" "$1"
 }
+
+cleanup_temp() {
+    if [ -n "${TEMP_DIR:-}" ] && [ -d "$TEMP_DIR" ]; then
+        rm -f "$TEMP_DIR/$BINARY_NAME" "$TEMP_DIR/checksums.txt"
+        rmdir "$TEMP_DIR" 2>/dev/null || true
+    fi
+}
+
+trap cleanup_temp EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Detect OS and architecture
 detect_platform() {
@@ -87,46 +100,81 @@ get_latest_version() {
         info "Using specified version: $VERSION"
     else
         info "Fetching latest version..."
-        VERSION=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        
+        if command -v curl >/dev/null 2>&1; then
+            RELEASE_JSON=$(curl -fsSL --retry 3 \
+                "https://api.github.com/repos/${GITHUB_REPO}/releases/latest")
+        elif command -v wget >/dev/null 2>&1; then
+            RELEASE_JSON=$(wget -q -O - \
+                "https://api.github.com/repos/${GITHUB_REPO}/releases/latest")
+        else
+            error "Neither curl nor wget found. Please install one of them."
+            exit 1
+        fi
+        VERSION=$(printf '%s\n' "$RELEASE_JSON" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
         if [ -z "$VERSION" ]; then
             error "Failed to fetch latest version"
             exit 1
         fi
         info "Latest version: $VERSION"
     fi
+
+    case "$VERSION" in
+        v*) ;;
+        *) VERSION="v$VERSION" ;;
+    esac
 }
 
-# Download binary from GitHub releases
-download_binary() {
-    DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/orchcli_${BINARY_SUFFIX}"
-    TEMP_DIR=$(mktemp -d)
-    TEMP_BINARY="$TEMP_DIR/$BINARY_NAME"
-    
-    info "Downloading OrchCLI from: $DOWNLOAD_URL"
-    
+download_file() {
+    source_url="$1"
+    destination="$2"
+
     if command -v curl >/dev/null 2>&1; then
-        curl -L -o "$TEMP_BINARY" "$DOWNLOAD_URL" || {
-            error "Failed to download binary"
-            rm -rf "$TEMP_DIR"
-            exit 1
-        }
+        curl -fsSL --retry 3 --output "$destination" "$source_url"
     elif command -v wget >/dev/null 2>&1; then
-        wget -q -O "$TEMP_BINARY" "$DOWNLOAD_URL" || {
-            error "Failed to download binary"
-            rm -rf "$TEMP_DIR"
-            exit 1
-        }
+        wget -q -O "$destination" "$source_url"
     else
         error "Neither curl nor wget found. Please install one of them."
-        rm -rf "$TEMP_DIR"
         exit 1
     fi
+}
+
+sha256_file() {
+    target="$1"
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$target" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$target" | awk '{print $1}'
+    elif command -v openssl >/dev/null 2>&1; then
+        openssl dgst -sha256 "$target" | awk '{print $NF}'
+    else
+        error "A SHA256 tool is required (sha256sum, shasum, or openssl)."
+        exit 1
+    fi
+}
+
+# Download and verify the binary from GitHub Releases.
+download_binary() {
+    BINARY_ASSET="orchcli_${BINARY_SUFFIX}"
+    RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}"
+    DOWNLOAD_URL="${RELEASE_URL}/${BINARY_ASSET}"
+    TEMP_DIR=$(mktemp -d)
+    TEMP_BINARY="$TEMP_DIR/$BINARY_NAME"
+    TEMP_CHECKSUMS="$TEMP_DIR/checksums.txt"
+
+    info "Downloading OrchCLI from: $DOWNLOAD_URL"
+    download_file "${RELEASE_URL}/checksums.txt" "$TEMP_CHECKSUMS" || {
+        error "Failed to download checksums.txt for $VERSION"
+        exit 1
+    }
+    download_file "$DOWNLOAD_URL" "$TEMP_BINARY" || {
+        error "Failed to download $BINARY_ASSET"
+        exit 1
+    }
     
     # Check if download was successful and file is valid
     if [ ! -f "$TEMP_BINARY" ]; then
         error "Download failed - file not created"
-        rm -rf "$TEMP_DIR"
         exit 1
     fi
     
@@ -134,11 +182,26 @@ download_binary() {
     if [ "$FILE_SIZE" -lt 1000 ]; then
         error "Downloaded file is too small ($FILE_SIZE bytes) - possibly a 404 error page"
         error "The release $VERSION may not have binaries uploaded yet"
-        rm -rf "$TEMP_DIR"
         exit 1
     fi
-    
+
+    EXPECTED_CHECKSUM=$(awk -v asset="$BINARY_ASSET" \
+        '$2 == asset || $2 == "*" asset { print tolower($1); exit }' \
+        "$TEMP_CHECKSUMS")
+    if [ -z "$EXPECTED_CHECKSUM" ]; then
+        error "checksums.txt does not contain $BINARY_ASSET"
+        exit 1
+    fi
+    ACTUAL_CHECKSUM=$(sha256_file "$TEMP_BINARY" | tr '[:upper:]' '[:lower:]')
+    if [ "$ACTUAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
+        error "Checksum mismatch for $BINARY_ASSET"
+        error "Expected: $EXPECTED_CHECKSUM"
+        error "Received: $ACTUAL_CHECKSUM"
+        exit 1
+    fi
+
     chmod +x "$TEMP_BINARY"
+    info "Verified SHA256 checksum: $ACTUAL_CHECKSUM"
     info "Binary downloaded successfully (size: $FILE_SIZE bytes)"
 }
 
@@ -156,7 +219,6 @@ install_binary() {
         else
             error "Cannot write to $INSTALL_DIR and sudo is not available"
             error "Try running as root or set ORCHCLI_INSTALL_DIR to a writable location"
-            rm -rf "$TEMP_DIR"
             exit 1
         fi
     fi
@@ -172,8 +234,8 @@ install_binary() {
     $SUDO mv "$TEMP_BINARY" "$INSTALL_DIR/$BINARY_NAME"
     $SUDO chmod +x "$INSTALL_DIR/$BINARY_NAME"
     
-    # Clean up
-    rm -rf "$TEMP_DIR"
+    # Clean up the checksum file and now-empty temporary directory.
+    cleanup_temp
     
     # Verify installation
     if [ -f "$INSTALL_DIR/$BINARY_NAME" ]; then

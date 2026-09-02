@@ -300,12 +300,29 @@ func TestEmbeddedComposeContract(t *testing.T) {
 	}
 	content := string(prod)
 	for _, expected := range []string{
+		"name: ${KUBEORCH_COMPOSE_PROJECT:-kubeorchestra}",
 		"KUBEORCH_MONGO_URI: mongodb://mongodb:27017/kubeorchestra",
-		`- "3001:3000"`,
-		"NEXT_PUBLIC_API_URL: http://localhost:3000/v1/api",
+		"${KUBEORCH_CORS_ALLOWED_ORIGINS:-http://localhost:3001}",
+		`${KUBEORCH_UI_PORT:-3001}:3000`,
+		"${KUBEORCH_BROWSER_API_URL:-http://localhost:3000/v1/api}",
+		"${KUBEORCH_CORE_IMAGE:-" + defaultCoreImage + "}",
+		"${KUBEORCH_UI_IMAGE:-" + defaultUIImage + "}",
+		"http://127.0.0.1:3000/v1",
 	} {
 		if !strings.Contains(content, expected) {
 			t.Fatalf("production Compose is missing %q", expected)
 		}
+	}
+}
+
+func TestConfiguredEnvironmentValue(t *testing.T) {
+	t.Setenv("KUBEORCH_TEST_IMAGE", "  ghcr.io/kubeorch/test@sha256:abc  ")
+	if actual := configuredEnvironmentValue("KUBEORCH_TEST_IMAGE", "default"); actual != "ghcr.io/kubeorch/test@sha256:abc" {
+		t.Fatalf("unexpected configured image: %q", actual)
+	}
+
+	t.Setenv("KUBEORCH_TEST_IMAGE", "   ")
+	if actual := configuredEnvironmentValue("KUBEORCH_TEST_IMAGE", "default"); actual != "default" {
+		t.Fatalf("expected default image, got %q", actual)
 	}
 }

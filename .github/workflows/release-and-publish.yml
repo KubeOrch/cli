@@ -15,23 +15,24 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.2.0
         with:
           go-version: '1.22'
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Ensure latest npm (OIDC requires npm 11.5.1+)
-        run: npm install -g npm@latest
+      - name: Install OIDC-capable npm
+        run: npm install -g npm@12.0.2
 
       - name: Get version from tag
         id: version
@@ -46,6 +47,11 @@ jobs:
           sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
           echo "Updated package.json to version $VERSION"
           cat package.json | grep version
+
+      - name: Test release sources
+        run: |
+          go test ./...
+          npm test
 
       - name: Build binaries for all platforms
         run: |
@@ -63,6 +69,7 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/orchcli_linux_amd64 main.go
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/orchcli_linux_arm64 main.go
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/orchcli_windows_amd64.exe main.go
+          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/orchcli_windows_arm64.exe main.go
 
           cd dist
           sha256sum * > checksums.txt
@@ -71,7 +78,7 @@ jobs:
           cd ..
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: dist/*
           generate_release_notes: true
