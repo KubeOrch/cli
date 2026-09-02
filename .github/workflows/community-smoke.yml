@@ -108,7 +108,7 @@ jobs:
             npm install --global --prefix "$prefix" "@kubeorch/cli@$version"
           else
             npm version "$version" --no-git-tag-version --allow-same-version
-            package_file="$(npm pack --silent)"
+            package_file="$(npm pack --silent | tail -n 1)"
             npm install --global --prefix "$prefix" "./$package_file"
           fi
           "$prefix/bin/orchcli" --version | tee npm-version.log
