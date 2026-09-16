@@ -273,21 +273,21 @@ func TestEmbeddedComposeContract(t *testing.T) {
 	}
 	for _, name := range files {
 		t.Run(name, func(t *testing.T) {
-			embedded, err := embeddedComposeFiles.ReadFile("docker/" + name)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if strings.Contains(string(embedded), "version: '3.8'") {
-				t.Fatal("obsolete Compose version declaration is present")
-			}
-			if strings.Contains(string(embedded), ":latest") {
-				t.Fatal("runtime image is not pinned")
-			}
+		embedded, err := embeddedComposeFiles.ReadFile("docker/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(embedded), "version: '3.8'") {
+			t.Fatal("obsolete Compose version declaration is present")
+		}
+		if strings.Contains(string(embedded), ":latest") {
+			t.Fatal("runtime image is not pinned")
+		}
 
-			shipped, err := os.ReadFile(filepath.Join("..", "docker", name))
-			if err != nil {
-				t.Fatal(err)
-			}
+		shipped, err := os.ReadFile(filepath.Join("docker", name))
+		if err != nil {
+			t.Fatal(err)
+		}
 			if string(embedded) != string(shipped) {
 				t.Fatal("embedded and repository Compose files differ")
 			}
