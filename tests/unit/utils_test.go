@@ -96,53 +96,6 @@ func (suite *UtilsTestSuite) TestGetComposeFile() {
 	}
 }
 
-func (suite *UtilsTestSuite) TestValidateDockerCompose() {
-	// Test Docker Compose validation
-	// This would mock the docker compose check
-
-	// Mock successful validation
-	mockCmd := func() error {
-		return nil
-	}
-
-	err := mockCmd()
-	assert.NoError(suite.T(), err)
-
-	// Mock failed validation
-	mockFailCmd := func() error {
-		return assert.AnError
-	}
-
-	err = mockFailCmd()
-	assert.Error(suite.T(), err)
-}
-
-func (suite *UtilsTestSuite) TestJoinArgs() {
-	// Test argument joining for shell commands
-	testCases := []struct {
-		expected string
-		args     []string
-	}{
-		{
-			expected: "arg1 arg2",
-			args:     []string{"arg1", "arg2"},
-		},
-		{
-			expected: "'arg with spaces' arg2",
-			args:     []string{"arg with spaces", "arg2"},
-		},
-		{
-			expected: "'arg'\"'\"'with'\"'\"'quotes' arg2",
-			args:     []string{"arg'with'quotes", "arg2"},
-		},
-	}
-
-	for _, tc := range testCases {
-		// This would test the actual joinArgs function
-		assert.NotEmpty(suite.T(), tc.expected)
-	}
-}
-
 func TestUtilsTestSuite(t *testing.T) {
 	suite.Run(t, new(UtilsTestSuite))
 }

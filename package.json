@@ -2,13 +2,11 @@
   "name": "@kubeorch/cli",
   "version": "0.0.3",
   "description": "OrchCLI - KubeOrch Developer CLI",
-  "main": "npm/index.js",
   "bin": {
     "orchcli": "./npm/bin/orchcli"
   },
   "scripts": {
     "postinstall": "node npm/scripts/postinstall.js",
-    "prepack": "node npm/scripts/prepack.js",
     "test": "echo \"Tests are run via Go test suite\" && exit 0"
   },
   "repository": {

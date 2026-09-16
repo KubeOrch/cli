@@ -2,7 +2,6 @@
 package helpers
 
 import (
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -59,32 +58,6 @@ func (h *TestHelper) ReadFile(path string) string {
 	content, err := os.ReadFile(path)
 	require.NoError(h.T, err)
 	return string(content)
-}
-
-// CaptureOutput captures stdout and stderr
-func CaptureOutput(f func()) (string, string, error) {
-	oldStdout := os.Stdout
-	oldStderr := os.Stderr
-
-	rOut, wOut, _ := os.Pipe()
-	rErr, wErr, _ := os.Pipe()
-
-	os.Stdout = wOut
-	os.Stderr = wErr
-
-	// Run the function
-	f()
-
-	// Restore
-	wOut.Close()
-	wErr.Close()
-	os.Stdout = oldStdout
-	os.Stderr = oldStderr
-
-	stdout, _ := io.ReadAll(rOut)
-	stderr, _ := io.ReadAll(rErr)
-
-	return string(stdout), string(stderr), nil
 }
 
 // Cleanup performs cleanup operations
